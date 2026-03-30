@@ -1,0 +1,25 @@
+{
+  "name": "studio-by-scientist",
+  "version": "0.1.0",
+  "description": "AI-Powered Church Presentation Software",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "keywords": [
+    "church",
+    "presentation",
+    "worship",
+    "ai"
+  ],
+  "author": "Mine",
+  "license": "MIT",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.98.0",
+    "electron-store": "^8.1.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "electron": "^40.7.0"
+  }
+}

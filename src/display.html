@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Studio - Display</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background: #000;
+      color: #fff;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px;
+      overflow: hidden;
+    }
+
+    #content {
+      animation: fadeIn 0.8s ease-in-out;
+      text-align: center;
+      max-width: 95%;
+      width: 100%;
+    }
+
+    @keyframes fadeIn {
+      from { 
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to { 
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateX(-50px);
+      }
+      to {
+        opacity: 1;
+        transform: translateX(0);
+      }
+    }
+
+    /* Welcome Screen */
+    .welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 40px;
+    }
+
+    .logo-text {
+      font-size: 80px;
+      font-weight: 900;
+      background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 4px;
+    }
+
+    .tagline {
+      font-size: 36px;
+      color: rgba(255, 255, 255, 0.8);
+      font-weight: 300;
+    }
+
+    /* Verse Display */
+    .verse-container {
+      display: none;
+    }
+
+    .verse-container.active {
+      display: block;
+    }
+
+    .verse-reference {
+      color: #FFD700;
+      font-size: 48px;
+      font-weight: 800;
+      margin-bottom: 60px;
+      text-transform: uppercase;
+      letter-spacing: 4px;
+      text-shadow: 0 0 40px rgba(255, 215, 0, 0.6);
+      animation: slideIn 0.6s ease-out;
+    }
+
+    .verse-text {
+      color: #fff;
+      font-size: 56px;
+      line-height: 1.6;
+      font-weight: 400;
+      max-width: 1400px;
+      margin: 0 auto;
+      text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+      animation: slideIn 0.8s ease-out 0.2s both;
+    }
+
+    .verse-translation {
+      color: rgba(255, 215, 0, 0.7);
+      font-size: 28px;
+      margin-top: 40px;
+      font-weight: 300;
+      animation: fadeIn 1s ease-out 0.4s both;
+    }
+
+    /* Multi-verse indicator */
+    .verse-counter {
+      position: fixed;
+      top: 40px;
+      right: 40px;
+      background: rgba(255, 215, 0, 0.2);
+      padding: 15px 25px;
+      border-radius: 30px;
+      font-size: 20px;
+      font-weight: 600;
+      color: #FFD700;
+      border: 2px solid rgba(255, 215, 0, 0.5);
+    }
+  </style>
+</head>
+<body>
+  <div id="content">
+    <!-- Welcome Screen -->
+    <div class="welcome" id="welcomeScreen">
+      <div class="logo-text">STUDIO BY SCIENTIST</div>
+      <div class="tagline">AI-Powered Church Presentations</div>
+    </div>
+
+    <!-- Verse Display -->
+    <div class="verse-container" id="verseScreen">
+      <div class="verse-reference" id="verseRef"></div>
+      <div class="verse-text" id="verseText"></div>
+      <div class="verse-translation" id="verseTrans"></div>
+    </div>
+  </div>
+
+  <!-- Verse counter for multi-verse display -->
+  <div class="verse-counter" id="verseCounter" style="display: none;"></div>
+
+  <script>
+  const { ipcRenderer } = require('electron');
+
+  const welcomeScreen = document.getElementById('welcomeScreen');
+  const verseScreen = document.getElementById('verseScreen');
+  const verseRef = document.getElementById('verseRef');
+  const verseText = document.getElementById('verseText');
+  const verseTrans = document.getElementById('verseTrans');
+  const verseCounter = document.getElementById('verseCounter');
+
+  let currentVerseIndex = 0;
+  let totalVerses = 1;
+
+
+
+  // Listen for verse display
+  ipcRenderer.on('show-verse', (event, verse) => {
+    console.log('📺 Received verse:', verse);
+    
+    // Hide welcome, show verse
+    welcomeScreen.style.display = 'none';
+    verseScreen.classList.add('active');
+
+    // Update content
+    verseRef.textContent = verse.reference;
+    verseText.textContent = verse.text.trim();
+    verseTrans.textContent = `(${verse.translation})`;
+
+  // RE-APPLY THEME IF ONE IS SET! ← ADD THIS!
+  if (currentDisplayTheme) {
+    applyThemeColors(currentDisplayTheme);
+  }
+
+    // Trigger animation
+    document.getElementById('content').style.animation = 'none';
+    setTimeout(() => {
+      document.getElementById('content').style.animation = 'fadeIn 0.8s ease-in-out';
+    }, 10);
+  });
+ipcRenderer.on('show-lyrics', (event, lyricsData) => {
+  console.log('📺 Displaying lyrics:', lyricsData);
+  
+  welcomeScreen.style.display = 'none';
+  verseScreen.classList.add('active');
+  
+  // CHANGE FORMAT TO "SONG - AUTHOR"
+  const displayTitle = lyricsData.author 
+    ? `${lyricsData.title} - ${lyricsData.author}`
+    : lyricsData.title;
+  
+  verseRef.textContent = displayTitle;
+  verseText.textContent = lyricsData.lyrics || 'No lyrics available';
+  verseTrans.textContent = '';
+  
+  // Apply custom font size
+  if (lyricsData.fontSize) {
+    verseText.style.fontSize = lyricsData.fontSize + 'px';
+  }
+  
+  // Re-apply theme colors if set
+  if (currentDisplayTheme) {
+    applyThemeColors(currentDisplayTheme);
+  }
+   // THEN APPLY CUSTOM LYRICS FONT SIZE (overrides theme!)
+  if (lyricsData.fontSize) {
+    verseText.style.fontSize = lyricsData.fontSize + 'px';
+    console.log('✅ Applied lyrics font size:', lyricsData.fontSize + 'px');
+  }
+  
+  document.getElementById('content').style.animation = 'none';
+  setTimeout(() => {
+    document.getElementById('content').style.animation = 'fadeIn 0.8s ease-in-out';
+  }, 10);
+});
+
+
+// Apply theme to display window
+let currentDisplayTheme = null;
+
+ipcRenderer.on('apply-theme', (event, themeData) => {
+  console.log('🎨 Applying theme to display:', themeData);
+  
+  // SAVE THEME SO IT PERSISTS!
+  currentDisplayTheme = themeData;
+  
+  // THE CONTAINER IS "content" NOT "container"!
+  const content = document.getElementById('content');
+  
+  if (!content) {
+    console.error('❌ Content element not found!');
+    return;
+  }
+  
+  // Apply background to BODY (better for full-screen)
+  document.body.style.backgroundImage = themeData.background ? `url(${themeData.background})` : '';
+  document.body.style.backgroundSize = 'cover';
+  document.body.style.backgroundPosition = 'center';
+  document.body.style.backgroundRepeat = 'no-repeat';
+  
+  // Apply overlay
+  const existingOverlay = document.getElementById('themeOverlay');
+  if (existingOverlay) {
+    existingOverlay.remove();
+  }
+  
+  if (themeData.overlay > 0) {
+    const overlay = document.createElement('div');
+    overlay.id = 'themeOverlay';
+    overlay.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,${themeData.overlay});
+      pointer-events: none;
+      z-index: 1;
+    `;
+    document.body.insertBefore(overlay, document.body.firstChild);
+  }
+  
+  // Make sure content is above overlay
+  content.style.position = 'relative';
+  content.style.zIndex = '10';
+  
+  // Apply colors and font size
+  applyThemeColors(themeData);
+  
+  console.log('✅ Theme applied successfully!');
+});
+
+// HELPER FUNCTION TO APPLY COLORS
+function applyThemeColors(themeData) {
+  const verseRef = document.getElementById('verseRef');
+  const verseText = document.getElementById('verseText');
+  
+  if (verseRef) {
+    verseRef.style.color = themeData.titleColor;
+  }
+  
+  if (verseText) {
+    verseText.style.color = themeData.textColor;
+    verseText.style.fontSize = themeData.fontSize + 'px';
+  }
+}
+  // Listen for multi-verse display (with counter)
+  ipcRenderer.on('show-verse-multi', (event, data) => {
+    console.log('📺 Received verse:', data.verse, `(${data.current}/${data.total})`);
+    
+    currentVerseIndex = data.current;
+    totalVerses = data.total;
+
+    // Hide welcome, show verse
+    welcomeScreen.style.display = 'none';
+    verseScreen.classList.add('active');
+
+    // Show counter if multiple verses
+    if (totalVerses > 1) {
+      verseCounter.style.display = 'block';
+      verseCounter.textContent = `${currentVerseIndex} / ${totalVerses}`;
+    } else {
+      verseCounter.style.display = 'none';
+    }
+
+    // Update content
+    verseRef.textContent = data.verse.reference;
+    verseText.textContent = data.verse.text.trim();
+    verseTrans.textContent = `(${data.verse.translation})`;
+
+    // Trigger animation
+    document.getElementById('content').style.animation = 'none';
+    setTimeout(() => {
+      document.getElementById('content').style.animation = 'fadeIn 0.8s ease-in-out';
+    }, 10);
+  });
+
+  // Listen for clear screen
+  ipcRenderer.on('clear-display', () => {
+    console.log('🧹 Clearing display');
+    welcomeScreen.style.display = 'flex';
+    verseScreen.classList.remove('active');
+    verseCounter.style.display = 'none';
+    document.getElementById('content').style.animation = 'fadeIn 0.8s ease-in-out';
+  });
+
+  // Keyboard shortcuts for display window
+  document.addEventListener('keydown', (e) => {
+    // Escape to clear
+    if (e.key === 'Escape') {
+      ipcRenderer.send('clear-screen');
+    }
+    
+    // Spacebar to go to next verse (if multi-verse)
+    if (e.key === ' ' && totalVerses > 1) {
+      e.preventDefault();
+      ipcRenderer.send('next-verse');
+    }
+
+    // Backspace to go to previous verse
+    if (e.key === 'Backspace' && totalVerses > 1) {
+      e.preventDefault();
+      ipcRenderer.send('prev-verse');
+    }
+  });
+
+  console.log('✅ Display window ready!');
+  </script>
+</body>
+</html>

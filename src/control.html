@@ -1,0 +1,1870 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Studio - Control Panel</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #1a1a2e;
+      color: #fff;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #B298E7 0%, #B8E3E9 100%);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      border-bottom: 3px solid #a78bfa;
+    }
+
+    .logo {
+      width: 45px;
+      height: 45px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 800;
+      color: #000;
+    }
+
+    .live-indicator {
+      margin-left: auto;
+      padding: 6px 14px;
+      background: #ff4444;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 12px;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      height: calc(100vh - 69px);
+      max-height: calc(100vh - 69px);
+      background: #0f0f1e;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      background: #1a1a2e;
+      border-right: 2px solid #2d2d4a;
+      padding: 15px 10px;
+      overflow-y: auto;
+      height: 100%;
+      max-height: 100%;
+    }
+
+    .menu-section {
+      margin-bottom: 25px;
+    }
+
+    .menu-title {
+      font-size: 11px;
+      color: #6b7280;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+      padding-left: 10px;
+      letter-spacing: 0.5px;
+    }
+
+    .menu-item {
+      padding: 12px 15px;
+      background: #2d2d4a;
+      border-radius: 6px;
+      margin-bottom: 5px;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 14px;
+      border-left: 3px solid transparent;
+    }
+
+    .menu-item:hover {
+      background: #3d3d5a;
+      border-left-color: #06b6d4;
+    }
+
+    .menu-item.active {
+      background: #3d3d5a;
+      border-left-color: #ec4899;
+      font-weight: 600;
+    }
+
+    .content-area {
+      display: grid;
+      grid-template-columns: 220px 1fr 380px;
+      gap: 0;
+      background: #0f0f1e;
+      height: 100%;
+      max-height: 100%;
+      overflow: hidden;
+    }
+
+    .books-panel {
+      background: #1a1a2e;
+      border-right: 1px solid #2d2d4a;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      height: 100%;
+      max-height: 100%;
+    }
+
+    .panel-header {
+      background: #2d2d4a;
+      padding: 10px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #9ca3af;
+      border-bottom: 1px solid #374151;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .books-list {
+      flex: 1;
+      overflow-y: scroll !important;
+      overflow-x: hidden;
+      padding: 8px;
+      padding-bottom: 20px;
+      min-height: 0;
+      max-height: 100%;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .testament-divider {
+      padding: 8px 10px;
+      font-size: 10px;
+      color: #6b7280;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .book-item {
+      padding: 8px 10px;
+      background: #2d2d4a;
+      margin-bottom: 3px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.15s;
+      display: flex;
+      justify-content: space-between;
+      border-left: 3px solid transparent;
+       white-space: nowrap; 
+        overflow: hidden; 
+        text-overflow: ellipsis; 
+    }
+
+    .book-item:hover {
+      background: #3d3d5a;
+      transform: translateX(2px);
+      border-left-color: #06b6d4;
+    }
+
+    .book-item.active {
+      background: rgba(236, 72, 153, 0.25);
+      border-left-color: #ec4899;
+      font-weight: 600;
+    }
+
+    .book-chapters {
+      font-size: 10px;
+      color: #6b7280;
+    }
+
+    .verses-panel {
+      background: #16213e;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      max-height: 100%;
+      overflow: hidden;
+    }
+
+    .verses-header {
+      background: linear-gradient(135deg, #a78bfa 0%, #ec4899 100%);
+      padding: 10px 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid #ec4899;
+    }
+
+    .chapter-nav {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .nav-btn {
+      background: rgba(255, 255, 255, 0.25);
+      border: none;
+      padding: 5px 12px;
+      border-radius: 5px;
+      color: #fff;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 13px;
+      transition: background 0.2s;
+    }
+
+    .nav-btn:hover:not(:disabled) {
+      background: rgba(255, 255, 255, 0.35);
+    }
+
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    .chapter-title {
+      font-size: 15px;
+      font-weight: 800;
+      min-width: 150px;
+      text-align: center;
+    }
+
+    .translation-select {
+      background: rgba(255, 255, 255, 0.25);
+      border: none;
+      padding: 5px 10px;
+      border-radius: 5px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .quick-search {
+      padding: 10px 12px;
+      background: rgba(6, 182, 212, 0.1);
+      border-bottom: 1px solid #2d2d4a;
+    }
+
+    .search-input {
+      width: 100%;
+      background: #06b6d4;
+      border: none;
+      padding: 8px 12px;
+      border-radius: 6px;
+      color: #fff;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .search-input::placeholder {
+      color: rgba(255, 255, 255, 0.75);
+    }
+
+    .verses-container {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding: 10px;
+      min-height: 0;
+    }
+
+    .verse-item {
+      background: #1a1a2e;
+      padding: 12px;
+      margin-bottom: 6px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-left: 3px solid transparent;
+      display: grid;
+      grid-template-columns: 100px 1fr;
+      gap: 15px;
+       align-items: start;    
+    }
+
+    .verse-item:hover {
+      background: #2d2d4a;
+      border-left-color: #06b6d4;
+    }
+
+    .verse-item.selected {
+      background: rgba(236, 72, 153, 0.25);
+      border-left-color: #ec4899;
+    }
+
+    .verse-num {
+      font-weight: 700;
+      color: #06b6d4;
+      font-size: 12px;
+    }
+
+    .verse-txt {
+      font-size: 13px;
+      line-height: 1.5;
+      color: #e5e7eb;
+    }
+
+    .load-more {
+      text-align: center;
+      padding: 12px;
+      color: #06b6d4;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 13px;
+      background: #1a1a2e;
+      border-radius: 6px;
+      margin-top: 5px;
+    }
+
+    .load-more:hover {
+      background: #2d2d4a;
+      color: #0891b2;
+    }
+
+    .preview-panel {
+      background: #1a1a2e;
+      border-left: 1px solid #2d2d4a;
+      display: flex;
+      flex-direction: column;
+      padding: 15px;
+      gap: 12px;
+    }
+
+    .preview-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: #6b7280;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .preview-box {
+      background: #000;
+      border: 3px solid #2d2d4a;
+      border-radius: 8px;
+      padding: 25px;
+      text-align: center;
+      min-height: 280px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .preview-ref {
+      color: #FFD700;
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 20px;
+      text-shadow: 0 0 25px rgba(255, 215, 0, 0.5);
+      letter-spacing: 1px;
+    }
+
+    .preview-text {
+      color: #fff;
+      font-size: 17px;
+      line-height: 1.7;
+      margin-bottom: 15px;
+    }
+
+    .preview-trans {
+      color: rgba(255, 215, 0, 0.6);
+      font-size: 13px;
+    }
+
+    .preview-empty {
+      color: #4b5563;
+      font-size: 14px;
+    }
+
+    .action-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .btn {
+      padding: 14px;
+      border: none;
+      border-radius: 7px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-display {
+      background: linear-gradient(135deg, #a78bfa 0%, #ec4899 100%);
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(236, 72, 153, 0.4);
+    }
+
+    .btn-display:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(236, 72, 153, 0.6);
+    }
+
+    .btn-secondary {
+      background: #374151;
+      color: #fff;
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: #4b5563;
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    ::-webkit-scrollbar {
+      width: 12px;
+      height: 12px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: #1a1a2e;
+      border-radius: 6px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: #06b6d4;
+      border-radius: 6px;
+      border: 2px solid #1a1a2e;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: #0891b2;
+    }
+    
+    ::-webkit-scrollbar-thumb:active {
+      background: #ec4899;
+    }
+/* Songs Content Area Styling */
+#songsContent {
+  display: none;
+  flex: 1;
+  gap: 20px;
+  padding: 20px;
+  position: absolute;
+  top: 0;
+  left: 210px;
+  right: 0;
+  bottom: 0;
+}
+
+#songsContent .books-panel {
+  width: 280px;
+  background: rgba(26, 26, 46, 0.6);
+  border: 2px solid rgba(167, 139, 250, 0.2);
+  border-radius: 12px;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+#songsContent .verses-panel {
+  flex: 1;
+  background: rgba(26, 26, 46, 0.6);
+  border: 2px solid rgba(167, 139, 250, 0.2);
+  border-radius: 12px;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+#songsContent .preview-panel {
+  width: 450px;
+  background: rgba(26, 26, 46, 0.9);
+  border: 2px solid rgba(167, 139, 250, 0.5);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+#lyricsPreview {
+  flex: 1;
+  min-height: 400px;
+  max-height: 600px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: rgba(26, 26, 46, 0.6);
+  border-radius: 8px;
+  border: 2px solid rgba(167, 139, 250, 0.2);
+}
+
+#lyricsPreview > div {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+#songsContent .panel-header {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 15px;
+  color: #a78bfa;
+}
+
+#songsContent .books-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Themes Content Area - CRITICAL! */
+#themesContent {
+  display: none;
+  flex: 1;
+  gap: 20px;
+  padding: 20px;
+  position: absolute;
+  top: 0;
+  left: 210px;
+  right: 0;
+  bottom: 0;
+}
+
+#themesContent .books-panel {
+  width: 280px;
+  background: rgba(26, 26, 46, 0.9);
+  border: 2px solid rgba(167, 139, 250, 0.5);
+  border-radius: 12px;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+#themesContent .verses-panel {
+  flex: 1;
+  background: rgba(26, 26, 46, 0.9);
+  border: 2px solid rgba(167, 139, 250, 0.5);
+  border-radius: 12px;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+#themesContent .preview-panel {
+  width: 400px;
+  background: rgba(26, 26, 46, 0.9);
+  border: 2px solid rgba(167, 139, 250, 0.5);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+#themesContent .panel-header {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 15px;
+  color: #a78bfa;
+}
+
+  </style>
+</head>
+<body>
+  <div class="header">
+    <img src="../assets/logo.png" alt="Studio" class="logo">
+    <h1>Studio by Scientist</h1>
+    <div class="live-indicator">🔴 LIVE</div>
+  </div>
+
+  <div class="container">
+    <div class="sidebar">
+      <div class="menu-section">
+        <div class="menu-title">Content</div>
+        <div class="menu-item active">📖 Bible</div>
+        <div class="menu-item">🎵 Songs</div>
+        <div class="menu-item">📢 Announcements</div>
+      </div>
+      <div class="menu-section">
+        <div class="menu-title">Design</div>
+        <div class="menu-item">🎨 Themes</div>
+        <div class="menu-item">🖼️ Backgrounds</div>
+      </div>
+      <div class="menu-section">
+        <div class="menu-title">Tools</div>
+        <div class="menu-item">📅 Schedule</div>
+        <div class="menu-item">⚙️ Settings</div>
+      </div>
+    </div>
+
+    <div class="content-area">
+      <div class="books-panel">
+        <div class="panel-header">📚 Books</div>
+        <div class="books-list" id="booksList"></div>
+      </div>
+
+      <div class="verses-panel">
+        <div class="verses-header">
+          <div class="chapter-nav">
+            <button class="nav-btn" onclick="prevChapter()" id="prevBtn" disabled>◀</button>
+            <div class="chapter-title" id="chapterTitle">Select a book</div>
+            <button class="nav-btn" onclick="nextChapter()" id="nextBtn" disabled>▶</button>
+          </div>
+          <select class="translation-select" id="translation" onchange="reloadChapter()">
+            <option value="kjv">KJV</option>
+            <option value="niv">NIV</option>
+            <option value="nkjv">NKJV</option>
+            <option value="esv">ESV</option>
+          </select>
+        </div>
+
+        <div class="quick-search">
+          <input
+            type="text"
+            class="search-input"
+            placeholder="🔍 jn 3:16, ps 23, rom 8:28..."
+            id="searchInput"
+            onkeypress="if(event.key==='Enter') quickSearch()"
+          />
+        </div>
+
+        <div class="verses-container" id="versesContainer">
+          <div style="text-align: center; padding: 40px; color: #6b7280;">
+            Select a book to start browsing
+          </div>
+        </div>
+      </div>
+
+      <div class="preview-panel">
+        <div class="preview-label">🖥️ Preview</div>
+        <div class="preview-box" id="preview">
+          <div class="preview-empty">Click a verse to preview</div>
+        </div>
+
+        <div class="action-btns">
+          <button class="btn btn-display" onclick="displayVerse()" id="displayBtn" disabled>
+            🚀 Display on Screen
+          </button>
+          <button class="btn btn-secondary" onclick="clearScreen()">
+            🧹 Clear Screen
+          </button>
+          <button class="btn btn-secondary" onclick="copyText()" id="copyBtn" disabled>
+            📋 Copy Text
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- SONGS CONTENT AREA (Hidden by default) -->
+<div class="content-area" id="songsContent" style="display: none;">
+  <div class="books-panel">
+    <div class="panel-header">
+      🎵 Songs
+      <button class="nav-btn" onclick="createNewSong()" style="float: right;">+ New</button>
+    </div>
+    <input type="text" class="search-input" placeholder="🔍 Search songs..." style="margin: 10px; width: calc(100% - 20px);">
+    <div class="books-list" id="songsList"></div>
+  </div>
+
+  <div class="verses-panel">
+    <div id="songEditor" style="padding: 20px;">
+      <div style="text-align: center; padding: 40px; color: #6b7280;">
+        Select a song or create a new one
+      </div>
+    </div>
+  </div>
+
+  <div class="preview-panel">
+    <div class="preview-label">🖥️ Preview</div>
+    <div class="preview-box" id="lyricsPreview">
+      <div class="preview-empty">Click a section to preview</div>
+    </div>
+    <!-- 👇 ADD FONT SIZE CONTROL HERE 👇 -->
+    <div style="padding: 15px 0;">
+      <label style="display: block; margin-bottom: 8px; color: #9ca3af; font-size: 13px; font-weight: 600;">
+        LYRICS SIZE: <span id="lyricsFontSizeValue">48px</span>
+      </label>
+      <input 
+        type="range" 
+        id="lyricsFontSize"
+        min="32" 
+        max="96" 
+        value="48"
+        oninput="updateLyricsPreviewSize(this.value)"
+        style="width: 100%; height: 6px; background: rgba(167,139,250,0.3); border-radius: 3px; outline: none; cursor: pointer;"
+      >
+    </div>
+
+    <div class="action-btns">
+      <button class="btn btn-display" onclick="displayLyrics()">
+        🚀 Display Lyrics
+      </button>
+      <button class="btn btn-secondary" onclick="clearScreen()">
+        🧹 Clear Screen
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- THEMES CONTENT AREA (Add this after Songs content area) -->
+<div class="content-area" id="themesContent" style="display: none;">
+  
+  <!-- Themes List Panel -->
+  <div class="books-panel">
+    <div class="panel-header">
+      🎨 Themes
+      <button class="nav-btn" onclick="createNewTheme()" style="float: right; padding: 6px 12px; font-size: 12px;">+ New</button>
+    </div>
+    
+    <div style="margin: 10px 0;">
+      <select id="themeTypeFilter" onchange="filterThemes(this.value)" style="width: 100%; padding: 8px; background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.2); border-radius: 6px; color: #fff; outline: none;">
+        <option value="all">All Themes</option>
+        <option value="bible">Bible Themes</option>
+        <option value="songs">Songs Themes</option>
+      </select>
+    </div>
+    
+    <div class="books-list" id="themesList" style="display: grid; grid-template-columns: 1fr; gap: 10px;">
+      <!-- Themes will be loaded here -->
+    </div>
+  </div>
+
+  <!-- Theme Editor Panel -->
+  <div class="verses-panel">
+    <div id="themeEditor" style="padding: 20px;">
+      <div style="text-align: center; padding: 40px; color: #6b7280;">
+        Select a theme or create a new one
+      </div>
+    </div>
+  </div>
+
+  <!-- Theme Preview Panel -->
+  <div class="preview-panel">
+    <div class="preview-label">🖥️ Live Preview</div>
+    <div id="themePreview" style="
+      position: relative;
+      width: 100%;
+      height: 400px;
+      background: #000;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    ">
+      <!-- Preview background -->
+      <div id="previewBackground" style="
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-size: cover;
+        background-position: center;
+      "></div>
+      
+      <!-- Preview overlay -->
+      <div id="previewOverlay" style="
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.3);
+      "></div>
+      
+      <!-- Preview content -->
+      <div id="previewContent" style="
+        position: relative;
+        z-index: 10;
+        padding: 40px;
+        text-align: center;
+        max-width: 80%;
+      ">
+        <div id="previewTitle" style="
+          font-size: 24px;
+          font-weight: 600;
+          margin-bottom: 20px;
+          color: #a78bfa;
+        ">John 3:16</div>
+        
+        <div id="previewText" style="
+          font-size: 32px;
+          line-height: 1.6;
+          color: #fff;
+        ">
+          For God so loved the world,<br>
+          that he gave his only begotten Son
+        </div>
+      </div>
+    </div>
+    
+    <div class="action-btns" style="margin-top: 15px;">
+      <button class="btn btn-display" onclick="applyCurrentTheme()" id="applyThemeBtn" disabled>
+        🚀 Apply Theme
+      </button>
+    </div>
+  </div>
+  
+</div>
+
+  <script>
+  const { ipcRenderer } = require('electron');
+
+  const BOOKS = [
+    { name: "Genesis", ch: 50, ot: true },
+    { name: "Exodus", ch: 40, ot: true },
+    { name: "Leviticus", ch: 27, ot: true },
+    { name: "Numbers", ch: 36, ot: true },
+    { name: "Deuteronomy", ch: 34, ot: true },
+    { name: "Joshua", ch: 24, ot: true },
+    { name: "Judges", ch: 21, ot: true },
+    { name: "Ruth", ch: 4, ot: true },
+    { name: "1 Samuel", ch: 31, ot: true },
+    { name: "2 Samuel", ch: 24, ot: true },
+    { name: "1 Kings", ch: 22, ot: true },
+    { name: "2 Kings", ch: 25, ot: true },
+    { name: "1 Chronicles", ch: 29, ot: true },
+    { name: "2 Chronicles", ch: 36, ot: true },
+    { name: "Ezra", ch: 10, ot: true },
+    { name: "Nehemiah", ch: 13, ot: true },
+    { name: "Esther", ch: 10, ot: true },
+    { name: "Job", ch: 42, ot: true },
+    { name: "Psalms", ch: 150, ot: true },
+    { name: "Proverbs", ch: 31, ot: true },
+    { name: "Ecclesiastes", ch: 12, ot: true },
+    { name: "Song of Solomon", ch: 8, ot: true },
+    { name: "Isaiah", ch: 66, ot: true },
+    { name: "Jeremiah", ch: 52, ot: true },
+    { name: "Lamentations", ch: 5, ot: true },
+    { name: "Ezekiel", ch: 48, ot: true },
+    { name: "Daniel", ch: 12, ot: true },
+    { name: "Hosea", ch: 14, ot: true },
+    { name: "Joel", ch: 3, ot: true },
+    { name: "Amos", ch: 9, ot: true },
+    { name: "Obadiah", ch: 1, ot: true },
+    { name: "Jonah", ch: 4, ot: true },
+    { name: "Micah", ch: 7, ot: true },
+    { name: "Nahum", ch: 3, ot: true },
+    { name: "Habakkuk", ch: 3, ot: true },
+    { name: "Zephaniah", ch: 3, ot: true },
+    { name: "Haggai", ch: 2, ot: true },
+    { name: "Zechariah", ch: 14, ot: true },
+    { name: "Malachi", ch: 4, ot: true },
+    { name: "Matthew", ch: 28 },
+    { name: "Mark", ch: 16 },
+    { name: "Luke", ch: 24 },
+    { name: "John", ch: 21 },
+    { name: "Acts", ch: 28 },
+    { name: "Romans", ch: 16 },
+    { name: "1 Corinthians", ch: 16 },
+    { name: "2 Corinthians", ch: 13 },
+    { name: "Galatians", ch: 6 },
+    { name: "Ephesians", ch: 6 },
+    { name: "Philippians", ch: 4 },
+    { name: "Colossians", ch: 4 },
+    { name: "1 Thessalonians", ch: 5 },
+    { name: "2 Thessalonians", ch: 3 },
+    { name: "1 Timothy", ch: 6 },
+    { name: "2 Timothy", ch: 4 },
+    { name: "Titus", ch: 3 },
+    { name: "Philemon", ch: 1 },
+    { name: "Hebrews", ch: 13 },
+    { name: "James", ch: 5 },
+    { name: "1 Peter", ch: 5 },
+    { name: "2 Peter", ch: 3 },
+    { name: "1 John", ch: 5 },
+    { name: "2 John", ch: 1 },
+    { name: "3 John", ch: 1 },
+    { name: "Jude", ch: 1 },
+    { name: "Revelation", ch: 22 }
+  ];
+
+  let currentBook = null;
+  let currentChapter = 1;
+  let allVerses = [];
+  let displayedCount = 10;
+  let selectedVerse = null;
+
+  function init() {
+    const list = document.getElementById('booksList');
+    
+    // Old Testament
+    const otDiv = document.createElement('div');
+    otDiv.className = 'testament-divider';
+    otDiv.textContent = 'OLD TESTAMENT';
+    list.appendChild(otDiv);
+    
+    BOOKS.filter(b => b.ot).forEach(book => {
+      const div = document.createElement('div');
+      div.className = 'book-item';
+      div.setAttribute('data-book', book.name);
+      div.onclick = function() { selectBook(book, this); };
+      div.innerHTML = `<span>${book.name}</span><span class="book-chapters">${book.ch}</span>`;
+      list.appendChild(div);
+    });
+
+    // New Testament
+    const ntDiv = document.createElement('div');
+    ntDiv.className = 'testament-divider';
+    ntDiv.textContent = 'NEW TESTAMENT';
+    list.appendChild(ntDiv);
+    
+    BOOKS.filter(b => !b.ot).forEach(book => {
+      const div = document.createElement('div');
+      div.className = 'book-item';
+      div.setAttribute('data-book', book.name);
+      div.onclick = function() { selectBook(book, this); };
+      div.innerHTML = `<span>${book.name}</span><span class="book-chapters">${book.ch}</span>`;
+      list.appendChild(div);
+    });
+
+    console.log('✅ Bible loaded with', BOOKS.length, 'books');
+    
+    // Test scrolling setup
+    setTimeout(() => {
+      const list = document.getElementById('booksList');
+      const panel = list.parentElement;
+      
+      console.log('📊 SCROLLING DEBUG:');
+      console.log('  Panel height:', panel.clientHeight, 'px');
+      console.log('  List height:', list.clientHeight, 'px');
+      console.log('  Content height:', list.scrollHeight, 'px');
+      console.log('  Overflow Y:', window.getComputedStyle(list).overflowY);
+      console.log('  Is scrollable?', list.scrollHeight > list.clientHeight ? '✅ YES' : '❌ NO');
+      
+      if (list.scrollHeight > list.clientHeight) {
+        console.log('✅ SCROLLING ENABLED!');
+        console.log('   Try: Two-finger swipe OR drag cyan scrollbar');
+        
+        // Test scroll event
+        list.addEventListener('scroll', () => {
+          console.log('🎉 SCROLL WORKING! Position:', list.scrollTop);
+        }, { once: true });
+      } else {
+        console.log('⚠️ NO SCROLLING NEEDED - All content visible');
+        console.log('   Window height might be too large');
+      }
+    }, 500);
+  }
+
+  function selectBook(book, element) {
+    currentBook = book;
+    currentChapter = 1;
+    selectedVerse = null;
+    
+    // Remove active from all
+    document.querySelectorAll('.book-item').forEach(el => el.classList.remove('active'));
+    
+    // Add active to clicked element
+    if (element) {
+      element.classList.add('active');
+    } else {
+      // If called from search, find and activate the element
+      const bookEl = document.querySelector(`[data-book="${book.name}"]`);
+      if (bookEl) bookEl.classList.add('active');
+    }
+    
+    loadChapter();
+  }
+
+  async function loadChapter() {
+    if (!currentBook) return;
+
+    displayedCount = 10;
+    selectedVerse = null;
+    const trans = document.getElementById('translation').value;
+    document.getElementById('chapterTitle').textContent = `${currentBook.name} ${currentChapter}`;
+    document.getElementById('versesContainer').innerHTML = '<div style="text-align:center;padding:30px;color:#06b6d4;">⏳ Loading...</div>';
+    
+    // Update preview
+    document.getElementById('preview').innerHTML = '<div class="preview-empty">Click a verse to preview</div>';
+    document.getElementById('displayBtn').disabled = true;
+    document.getElementById('copyBtn').disabled = true;
+    
+    document.getElementById('prevBtn').disabled = currentChapter === 1;
+    document.getElementById('nextBtn').disabled = currentChapter === currentBook.ch;
+
+    try {
+      const res = await fetch(`https://bible-api.com/${currentBook.name}+${currentChapter}?translation=${trans}`);
+      const data = await res.json();
+      
+      if (!data.verses) {
+        document.getElementById('versesContainer').innerHTML = '<div style="text-align:center;padding:30px;color:#ff4444;">❌ Could not load chapter</div>';
+        return;
+      }
+      
+      allVerses = data.verses.map(v => ({ 
+        ref: `${v.book_name} ${v.chapter}:${v.verse}`, 
+        text: v.text, 
+        trans: trans.toUpperCase(), 
+        num: v.verse 
+      }));
+      
+      renderVerses();
+      console.log(`✅ Loaded ${currentBook.name} ${currentChapter} (${allVerses.length} verses)`);
+      
+    } catch (err) {
+      console.error('Error:', err);
+      document.getElementById('versesContainer').innerHTML = `<div style="text-align:center;padding:30px;color:#ff4444;">❌ Error loading</div>`;
+    }
+  }
+
+  function renderVerses() {
+    const container = document.getElementById('versesContainer');
+    container.innerHTML = '';
+    
+    const toShow = allVerses.slice(0, displayedCount);
+    toShow.forEach((v, i) => {
+      const div = document.createElement('div');
+      div.className = 'verse-item';
+      if (selectedVerse === i) div.classList.add('selected');
+      div.onclick = () => selectVerse(i);
+      div.innerHTML = `<div class="verse-num">${v.ref}</div><div class="verse-txt">${v.text.trim()}</div>`;
+      container.appendChild(div);
+    });
+
+    if (displayedCount < allVerses.length) {
+      const loadMore = document.createElement('div');
+      loadMore.className = 'load-more';
+      const remaining = allVerses.length - displayedCount;
+      loadMore.textContent = `▼ Load ${Math.min(10, remaining)} more verse${Math.min(10, remaining) > 1 ? 's' : ''} (${remaining} remaining)`;
+      loadMore.onclick = () => {
+        displayedCount += 10;
+        renderVerses();
+      };
+      container.appendChild(loadMore);
+    }
+  }
+
+  function selectVerse(i) {
+    selectedVerse = i;
+    renderVerses();
+    
+    const v = allVerses[i];
+    document.getElementById('preview').innerHTML = `
+      <div class="preview-ref">${v.ref}</div>
+      <div class="preview-text">${v.text.trim()}</div>
+      <div class="preview-trans">(${v.trans})</div>
+    `;
+    document.getElementById('displayBtn').disabled = false;
+    document.getElementById('copyBtn').disabled = false;
+  }
+
+  function displayVerse() {
+    if (selectedVerse === null) return;
+    const v = allVerses[selectedVerse];
+    console.log('📺 Displaying:', v.ref);
+    ipcRenderer.send('display-verse', { reference: v.ref, text: v.text, translation: v.trans });
+  }
+
+  function clearScreen() {
+    console.log('🧹 Clearing screen');
+    ipcRenderer.send('clear-screen');
+  }
+
+  function copyText() {
+    if (selectedVerse === null) return;
+    const v = allVerses[selectedVerse];
+    navigator.clipboard.writeText(`${v.ref}\n${v.text.trim()}`);
+    console.log('📋 Copied to clipboard');
+  }
+
+  function prevChapter() {
+    if (currentChapter > 1) {
+      currentChapter--;
+      loadChapter();
+    }
+  }
+
+  function nextChapter() {
+    if (currentChapter < currentBook.ch) {
+      currentChapter++;
+      loadChapter();
+    }
+  }
+
+  function reloadChapter() {
+    if (currentBook) loadChapter();
+  }
+
+  async function quickSearch() {
+    const input = document.getElementById('searchInput').value.trim().toLowerCase();
+    if (!input) return;
+
+    const abbrs = { 
+      'jn': 'John', 'john': 'John', 
+      'ps': 'Psalms', 'psalm': 'Psalms', 'psalms': 'Psalms', 
+      'rom': 'Romans', 'romans': 'Romans', 
+      'matt': 'Matthew', 'matthew': 'Matthew',
+      'gen': 'Genesis', 'genesis': 'Genesis',
+      'exo': 'Exodus', 'exodus': 'Exodus',
+      'mk': 'Mark', 'mark': 'Mark',
+      'lk': 'Luke', 'luke': 'Luke'
+    };
+    
+    const parts = input.split(/\s+/);
+    if (parts.length < 2) {
+      alert('Format: "jn 3:16" or "psalms 23"');
+      return;
+    }
+
+    const bookKey = parts.slice(0, -1).join(' ');
+    const ref = parts[parts.length - 1];
+    const bookName = abbrs[bookKey];
+    
+    if (!bookName) {
+      alert('Book not found. Try: jn, ps, rom, matt, etc.');
+      return;
+    }
+
+    const book = BOOKS.find(b => b.name === bookName);
+    if (!book) return;
+
+    selectBook(book);
+    
+    const [ch, vs] = ref.includes(':') ? ref.split(':').map(n => parseInt(n)) : [parseInt(ref), null];
+    currentChapter = ch;
+    await loadChapter();
+
+    if (vs) {
+      const idx = allVerses.findIndex(v => v.num === vs);
+      if (idx !== -1) {
+        // Ensure verse is visible
+        if (idx >= displayedCount) {
+          displayedCount = Math.ceil((idx + 1) / 10) * 10;
+          renderVerses();
+        }
+        selectVerse(idx);
+        
+        // Scroll to verse
+        setTimeout(() => {
+          const verseEls = document.querySelectorAll('.verse-item');
+          if (verseEls[idx]) {
+            verseEls[idx].scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 100);
+      }
+    }
+  }
+
+  init();
+  
+  // ============================================
+// SONGS TAB - EASYWORSHIP STYLE! 🎵🔥
+// ============================================
+
+// Replace your existing Songs JavaScript with this!
+
+// Menu switching (keep this the same)
+document.querySelectorAll('.menu-item').forEach((item, index) => {
+  item.addEventListener('click', () => {
+    document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+    item.classList.add('active');
+    document.querySelectorAll('.content-area').forEach(c => c.style.display = 'none');
+    
+    if (index === 0) {
+      // Bible
+      document.querySelector('.content-area').style.display = 'flex';
+    } else if (index === 1) {
+      // Songs
+      document.getElementById('songsContent').style.display = 'flex';
+      loadSongs();
+    } else if (index === 3) {
+      // Themes (skip index 2 which is Announcements)
+      document.getElementById('themesContent').style.display = 'flex';
+      loadThemes();
+    }
+  });
+});
+
+// Songs data
+let songs = [];
+let currentSong = null;
+let editMode = false;
+let selectedSection = null;
+
+async function loadSongs() {
+  const result = await ipcRenderer.invoke('get-songs');
+  if (result.success) {
+    songs = result.songs;
+    renderSongsList();
+  }
+}
+
+function renderSongsList() {
+  const list = document.getElementById('songsList');
+  if (songs.length === 0) {
+    list.innerHTML = '<div style="padding: 20px; text-align: center; color: #6b7280;">No songs yet</div>';
+    return;
+  }
+  
+  list.innerHTML = '';
+  songs.forEach(song => {
+    const div = document.createElement('div');
+    div.className = 'book-item';
+    div.style.cursor = 'pointer';
+    div.onclick = () => selectSong(song.id);
+    div.innerHTML = `
+      ${song.title}
+      <div style="font-size: 11px; color: #6b7280;">${song.author || 'Unknown'}</div>
+    `;
+    list.appendChild(div);
+  });
+}
+
+function createNewSong() {
+  currentSong = { title: '', author: '', sections: [] };
+  editMode = true;
+  renderSongEditor();
+}
+
+function selectSong(id) {
+  currentSong = songs.find(s => s.id === id);
+  editMode = false;
+  selectedSection = null;
+  renderSongViewer();
+}
+
+// ============================================
+// VIEW MODE - EASYWORSHIP STYLE! 🎯
+// ============================================
+
+function renderSongViewer() {
+  const editor = document.getElementById('songEditor');
+  const preview = document.getElementById('lyricsPreview');
+  
+  if (!currentSong) return;
+  
+  editor.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 2px solid rgba(167,139,250,0.2);">
+      <div>
+        <h2 style="color: #fff; font-size: 24px; margin-bottom: 5px;">${currentSong.title}</h2>
+        <div style="color: #9ca3af; font-size: 14px;">${currentSong.author || 'Unknown Author'}</div>
+      </div>
+      <div style="display: flex; gap: 10px;">
+        <button onclick="toggleEditMode()" style="padding: 10px 20px; background: rgba(167,139,250,0.3); border: 2px solid rgba(167,139,250,0.5); border-radius: 8px; color: #a78bfa; font-weight: 600; cursor: pointer; font-size: 14px;">✏️ Edit</button>
+        <button onclick="deleteSong()" style="padding: 10px 20px; background: rgba(239,68,68,0.3); border: 2px solid rgba(239,68,68,0.5); border-radius: 8px; color: #ef4444; font-weight: 600; cursor: pointer; font-size: 14px;">🗑️ Delete</button>
+      </div>
+    </div>
+    
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      ${renderSectionCards()}
+    </div>
+  `;
+  
+  // Clear preview
+  preview.innerHTML = '<div class="preview-empty">Click a section to preview</div>';
+}
+
+function renderSectionCards() {
+  if (!currentSong.sections || currentSong.sections.length === 0) {
+    return `
+      <div style="text-align: center; padding: 60px 20px; background: rgba(45,45,74,0.3); border-radius: 12px; border: 2px dashed rgba(167,139,250,0.3);">
+        <div style="font-size: 48px; margin-bottom: 15px; opacity: 0.5;">🎵</div>
+        <div style="color: #9ca3af; font-size: 16px; margin-bottom: 10px;">No sections yet</div>
+        <div style="color: #6b7280; font-size: 14px;">Click "Edit" to add sections</div>
+      </div>
+    `;
+  }
+  
+  return currentSong.sections.map((section, index) => {
+    const icon = {
+      verse: '📝',
+      chorus: '🎵',
+      bridge: '🌉',
+      intro: '🎬',
+      outro: '🎭'
+    }[section.type] || '📝';
+    
+    const typeLabel = section.type.charAt(0).toUpperCase() + section.type.slice(1);
+    const lyricsPreview = section.lyrics ? section.lyrics.split('\n').slice(0, 2).join('\n') : 'No lyrics';
+    const isSelected = selectedSection === index;
+    
+    return `
+      <div onclick="selectSection(${index})" style="
+        padding: 20px;
+        background: ${isSelected ? 'linear-gradient(135deg, rgba(167,139,250,0.2), rgba(236,72,153,0.2))' : 'rgba(45,45,74,0.4)'};
+        border: 2px solid ${isSelected ? 'rgba(167,139,250,0.6)' : 'rgba(167,139,250,0.1)'};
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: ${isSelected ? '0 4px 12px rgba(167,139,250,0.3)' : 'none'};
+      " onmouseover="this.style.borderColor='rgba(167,139,250,0.3)'" onmouseout="if(${!isSelected}) this.style.borderColor='rgba(167,139,250,0.1)'">
+        
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+          <span style="font-size: 24px;">${icon}</span>
+          <span style="color: #a78bfa; font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">${typeLabel}</span>
+        </div>
+        
+        <div style="color: #e5e7eb; font-size: 14px; line-height: 1.6; font-family: monospace; white-space: pre-wrap; opacity: 0.9;">
+          ${lyricsPreview.substring(0, 100)}${lyricsPreview.length > 100 ? '...' : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function selectSection(index) {
+  selectedSection = index;
+  const section = currentSong.sections[index];
+  
+  // Update section cards
+  renderSongViewer();
+  
+  // Update preview
+  const preview = document.getElementById('lyricsPreview');
+  const icon = {
+    verse: '📝',
+    chorus: '🎵',
+    bridge: '🌉',
+    intro: '🎬',
+    outro: '🎭'
+  }[section.type] || '📝';
+  
+  preview.innerHTML = `
+  <div style="padding: 20px; max-height: 500px; overflow-y: auto; overflow-x: hidden;">
+    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px;">
+      <span style="font-size: 32px;">${icon}</span>
+      <div>
+        <div style="color: #a78bfa; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">${section.type}</div>
+        <div style="color: #fff; font-size: 18px; font-weight: 600;">${currentSong.title}</div>
+      </div>
+    </div>
+    <div style="
+      color: #e5e7eb; 
+      font-size: ${currentLyricsFontSize}px; 
+      line-height: 1.8; 
+      font-family: monospace; 
+      white-space: pre-wrap; 
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      background: rgba(26,26,46,0.6); 
+      padding: 20px; 
+      border-radius: 8px; 
+      border: 1px solid rgba(167,139,250,0.2);
+      max-width: 100%;
+    ">
+      ${section.lyrics || 'No lyrics'}
+    </div>
+  </div>
+`;
+}
+
+function displaySelectedSection() {
+  if (selectedSection === null) {
+    alert('Please select a section first!');
+    return;
+  }
+  
+  const section = currentSong.sections[selectedSection];
+  ipcRenderer.send('display-lyrics', {
+    title: currentSong.title,
+     author: currentSong.author,
+    type: section.type,
+    lyrics: section.lyrics
+  });
+}
+let currentLyricsFontSize = 48;
+
+function updateLyricsPreviewSize(size) {
+  currentLyricsFontSize = parseInt(size);
+  document.getElementById('lyricsFontSizeValue').textContent = size + 'px';
+  
+  // Update the actual lyrics text in preview (not the wrapper div!)
+  const lyricsTextDiv = document.querySelector('#lyricsPreview > div > div:last-child');
+  if (lyricsTextDiv) {
+    lyricsTextDiv.style.fontSize = size + 'px';
+  }
+}
+
+function selectSection(index) {
+  selectedSection = index;
+  const section = currentSong.sections[index];
+  
+  renderSongViewer();
+  
+  const preview = document.getElementById('lyricsPreview');
+  const icon = {
+    verse: '📝',
+    chorus: '🎵',
+    bridge: '🌉',
+    intro: '🎬',
+    outro: '🎭'
+  }[section.type] || '📝';
+  
+  preview.innerHTML = `
+    <div style="height: 100%; display: flex; flex-direction: column;">
+      <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; padding: 15px; background: rgba(45,45,74,0.4); border-radius: 8px;">
+        <span style="font-size: 28px;">${icon}</span>
+        <div style="flex: 1; min-width: 0;">
+          <div style="color: #a78bfa; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px;">${section.type}</div>
+          <div style="color: #fff; font-size: 14px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${currentSong.title}</div>
+        </div>
+      </div>
+      <div style="
+        flex: 1;
+        color: #e5e7eb; 
+        font-size: ${currentLyricsFontSize}px; 
+        line-height: 1.6; 
+        white-space: pre-wrap; 
+        word-wrap: break-word;
+        overflow-wrap: break-word;
+        overflow-y: auto;
+        overflow-x: hidden;
+        background: rgba(26,26,46,0.8); 
+        padding: 20px; 
+        border-radius: 8px; 
+        border: 1px solid rgba(167,139,250,0.2);
+      ">
+${section.lyrics || 'No lyrics'}
+      </div>
+    </div>
+  `;
+}
+// ============================================
+// EDIT MODE - SAME AS BEFORE! ✏️
+// ============================================
+
+function toggleEditMode() {
+  editMode = !editMode;
+  if (editMode) {
+    renderSongEditor();
+  } else {
+    renderSongViewer();
+  }
+}
+
+function renderSongEditor() {
+  const editor = document.getElementById('songEditor');
+  if (!currentSong) return;
+  
+  editor.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h3 style="color: #a78bfa; font-size: 20px;">${currentSong.id ? 'Edit Song' : 'New Song'}</h3>
+      ${currentSong.id ? '<button onclick="toggleEditMode()" style="padding: 8px 16px; background: rgba(45,45,74,0.8); border: 1px solid rgba(167,139,250,0.3); border-radius: 6px; color: #a78bfa; cursor: pointer; font-size: 13px; font-weight: 600;">← Back to View</button>' : ''}
+    </div>
+    
+    <div style="margin-bottom: 15px;">
+      <label style="display: block; margin-bottom: 5px; color: #9ca3af; font-size: 13px; font-weight: 600;">Title</label>
+      <input type="text" id="songTitle" value="${currentSong.title || ''}" placeholder="Amazing Grace"
+             style="width: 100%; padding: 10px; background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.2); border-radius: 6px; color: #fff; outline: none;">
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; margin-bottom: 5px; color: #9ca3af; font-size: 13px; font-weight: 600;">Author</label>
+      <input type="text" id="songAuthor" value="${currentSong.author || ''}" placeholder="John Newton"
+             style="width: 100%; padding: 10px; background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.2); border-radius: 6px; color: #fff; outline: none;">
+    </div>
+    
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; margin-bottom: 10px; color: #9ca3af; font-size: 13px; font-weight: 600;">Sections</label>
+      <div id="sectionsContainer">${renderSections()}</div>
+      <button onclick="addSection()" style="margin-top: 10px; width: 100%; padding: 12px; background: rgba(45,45,74,0.6); border: 2px dashed rgba(167,139,250,0.3); border-radius: 6px; color: #a78bfa; cursor: pointer; font-size: 14px; font-weight: 600;">+ Add Section</button>
+    </div>
+    
+    <button onclick="saveSong()" style="width: 100%; padding: 12px 24px; background: linear-gradient(135deg, #a78bfa, #ec4899); border: none; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; font-size: 14px;">💾 Save Song</button>
+    ${currentSong.id ? '<button onclick="deleteSong()" style="width: 100%; margin-top: 10px; padding: 12px 24px; background: rgba(239,68,68,0.8); border: none; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; font-size: 14px;">🗑️ Delete Song</button>' : ''}
+  `;
+}
+
+function renderSections() {
+  if (!currentSong.sections || currentSong.sections.length === 0) {
+    return '<div style="color: #6b7280; padding: 20px; text-align: center; background: rgba(45,45,74,0.3); border-radius: 8px;">No sections yet. Add one below!</div>';
+  }
+  
+  return currentSong.sections.map((s, i) => `
+    <div style="margin-bottom: 15px; padding: 15px; background: rgba(45,45,74,0.4); border-radius: 8px; border: 1px solid rgba(167,139,250,0.1);">
+      <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+        <select onchange="currentSong.sections[${i}].type = this.value" style="padding: 8px 12px; background: rgba(26,26,46,0.8); border: 1px solid rgba(167,139,250,0.2); border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600;">
+          <option value="verse" ${s.type === 'verse' ? 'selected' : ''}>Verse</option>
+          <option value="chorus" ${s.type === 'chorus' ? 'selected' : ''}>Chorus</option>
+          <option value="bridge" ${s.type === 'bridge' ? 'selected' : ''}>Bridge</option>
+          <option value="intro" ${s.type === 'intro' ? 'selected' : ''}>Intro</option>
+          <option value="outro" ${s.type === 'outro' ? 'selected' : ''}>Outro</option>
+        </select>
+        <button onclick="removeSection(${i})" style="padding: 6px 12px; background: rgba(239,68,68,0.6); border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 12px; font-weight: 600;">Remove</button>
+      </div>
+      <textarea onchange="currentSong.sections[${i}].lyrics = this.value" placeholder="Enter lyrics here..."
+                style="width: 100%; padding: 12px; background: rgba(26,26,46,0.8); border: 1px solid rgba(167,139,250,0.2); border-radius: 6px; color: #fff; min-height: 100px; font-family: monospace; line-height: 1.6; resize: vertical; outline: none;">${s.lyrics || ''}</textarea>
+    </div>
+  `).join('');
+}
+
+function addSection() {
+  if (!currentSong.sections) currentSong.sections = [];
+  currentSong.sections.push({ type: 'verse', lyrics: '' });
+  renderSongEditor();
+}
+
+function removeSection(index) {
+  if (confirm('Remove this section?')) {
+    currentSong.sections.splice(index, 1);
+    renderSongEditor();
+  }
+}
+
+async function saveSong() {
+  currentSong.title = document.getElementById('songTitle').value.trim();
+  currentSong.author = document.getElementById('songAuthor').value.trim();
+  
+  if (!currentSong.title) {
+    alert('Please enter a song title!');
+    return;
+  }
+  
+  const result = await ipcRenderer.invoke('save-song', currentSong);
+  if (result.success) {
+    alert('Song saved! ✅');
+    currentSong = result.song;
+    await loadSongs();
+    editMode = false;
+    renderSongViewer();
+  } else {
+    alert('Error: ' + result.error);
+  }
+}
+
+async function deleteSong() {
+  if (!confirm(`Delete "${currentSong.title}"?`)) return;
+  
+  const result = await ipcRenderer.invoke('delete-song', currentSong.id);
+  if (result.success) {
+    alert('Song deleted!');
+    currentSong = null;
+    await loadSongs();
+    document.getElementById('songEditor').innerHTML = '<div style="text-align: center; padding: 40px; color: #6b7280;">Select a song or create a new one</div>';
+  }
+}
+
+function displayLyrics() {
+  displaySelectedSection();
+}
+
+// ============================================
+// THEMES TAB FUNCTIONALITY 🎨
+// ============================================
+
+let themes = [];
+let currentTheme = null;
+let uploadedImageUrl = null;
+
+async function loadThemes() {
+  const result = await ipcRenderer.invoke('get-themes');
+  if (result.success) {
+    themes = result.themes;
+    renderThemesList();
+  }
+}
+
+function filterThemes(type) {
+  renderThemesList(type);
+}
+
+function renderThemesList(filterType = 'all') {
+  const list = document.getElementById('themesList');
+  
+  const filteredThemes = filterType === 'all' 
+    ? themes 
+    : themes.filter(t => t.type === filterType);
+  
+  if (filteredThemes.length === 0) {
+    list.innerHTML = '<div style="padding: 20px; text-align: center; color: #6b7280;">No themes yet</div>';
+    return;
+  }
+  
+  list.innerHTML = filteredThemes.map(theme => `
+    <div onclick="selectTheme('${theme.id}')" style="
+      cursor: pointer;
+      padding: 10px;
+      background: rgba(45,45,74,0.4);
+      border: 2px solid rgba(167,139,250,0.2);
+      border-radius: 8px;
+      transition: all 0.2s;
+    " onmouseover="this.style.borderColor='rgba(167,139,250,0.4)'" onmouseout="this.style.borderColor='rgba(167,139,250,0.2)'">
+      <div style="font-size: 14px; font-weight: 600; color: #fff; margin-bottom: 4px;">${theme.name}</div>
+      <div style="font-size: 11px; color: #9ca3af; text-transform: uppercase;">${theme.type}</div>
+    </div>
+  `).join('');
+}
+
+function createNewTheme() {
+  currentTheme = {
+    name: '',
+    type: 'bible',
+    background_url: '',
+    text_color: '#ffffff',
+    title_color: '#a78bfa',
+    font_size: 32,
+    overlay_opacity: 0.3
+  };
+  uploadedImageUrl = null;
+  renderThemeEditor();
+  updatePreview();
+}
+
+function selectTheme(id) {
+  currentTheme = themes.find(t => t.id === id);
+  uploadedImageUrl = currentTheme.background_url;
+  renderThemeEditor();
+  updatePreview();
+}
+
+function renderThemeEditor() {
+  const editor = document.getElementById('themeEditor');
+  if (!currentTheme) return;
+  
+  editor.innerHTML = `
+    <h3 style="color: #a78bfa; margin-bottom: 25px; font-size: 20px;">${currentTheme.id ? 'Edit Theme' : 'Create New Theme'}</h3>
+    
+    <!-- Theme Name -->
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; margin-bottom: 8px; color: #9ca3af; font-size: 13px; font-weight: 600;">THEME NAME</label>
+      <input 
+        type="text" 
+        id="themeName" 
+        value="${currentTheme.name || ''}" 
+        placeholder="Ocean Sunset"
+        onchange="currentTheme.name = this.value"
+        style="width: 100%; padding: 10px; background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.2); border-radius: 6px; color: #fff; outline: none;"
+      >
+    </div>
+    
+    <!-- Theme Type -->
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; margin-bottom: 8px; color: #9ca3af; font-size: 13px; font-weight: 600;">TYPE</label>
+      <div style="display: flex; gap: 10px;">
+        <button 
+          onclick="setThemeType('bible')" 
+          style="flex: 1; padding: 12px; background: ${currentTheme.type === 'bible' ? 'linear-gradient(135deg, #a78bfa, #ec4899)' : 'rgba(45,45,74,0.6)'}; border: 2px solid ${currentTheme.type === 'bible' ? 'transparent' : 'rgba(167,139,250,0.2)'}; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer;"
+        >
+          📖 Bible
+        </button>
+        <button 
+          onclick="setThemeType('songs')" 
+          style="flex: 1; padding: 12px; background: ${currentTheme.type === 'songs' ? 'linear-gradient(135deg, #a78bfa, #ec4899)' : 'rgba(45,45,74,0.6)'}; border: 2px solid ${currentTheme.type === 'songs' ? 'transparent' : 'rgba(167,139,250,0.2)'}; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer;"
+        >
+          🎵 Songs
+        </button>
+      </div>
+    </div>
+    
+    <!-- Background Upload -->
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; margin-bottom: 8px; color: #9ca3af; font-size: 13px; font-weight: 600;">BACKGROUND IMAGE</label>
+      <input 
+        type="file" 
+        id="backgroundUpload" 
+        accept="image/*"
+        onchange="handleBackgroundUpload(event)"
+        style="display: none;"
+      >
+      <button 
+        onclick="document.getElementById('backgroundUpload').click()" 
+        style="width: 100%; padding: 40px; background: rgba(45,45,74,0.6); border: 2px dashed rgba(167,139,250,0.3); border-radius: 8px; color: #a78bfa; font-weight: 600; cursor: pointer; font-size: 14px;"
+      >
+        ${uploadedImageUrl ? '✅ Image Uploaded - Click to Change' : '📁 Click to Upload Image'}
+      </button>
+    </div>
+    
+    <!-- Text Color -->
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; margin-bottom: 8px; color: #9ca3af; font-size: 13px; font-weight: 600;">TEXT COLOR</label>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <input 
+          type="color" 
+          id="textColor" 
+          value="${currentTheme.text_color}"
+          onchange="currentTheme.text_color = this.value; updatePreview();"
+          style="width: 60px; height: 40px; border: 2px solid rgba(167,139,250,0.3); border-radius: 6px; cursor: pointer;"
+        >
+        <input 
+          type="text" 
+          value="${currentTheme.text_color}"
+          onchange="currentTheme.text_color = this.value; document.getElementById('textColor').value = this.value; updatePreview();"
+          style="flex: 1; padding: 10px; background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.2); border-radius: 6px; color: #fff; outline: none; font-family: monospace;"
+        >
+      </div>
+    </div>
+    
+    <!-- Title Color -->
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; margin-bottom: 8px; color: #9ca3af; font-size: 13px; font-weight: 600;">TITLE COLOR</label>
+      <div style="display: flex; gap: 10px; align-items: center;">
+        <input 
+          type="color" 
+          id="titleColor" 
+          value="${currentTheme.title_color}"
+          onchange="currentTheme.title_color = this.value; updatePreview();"
+          style="width: 60px; height: 40px; border: 2px solid rgba(167,139,250,0.3); border-radius: 6px; cursor: pointer;"
+        >
+        <input 
+          type="text" 
+          value="${currentTheme.title_color}"
+          onchange="currentTheme.title_color = this.value; document.getElementById('titleColor').value = this.value; updatePreview();"
+          style="flex: 1; padding: 10px; background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.2); border-radius: 6px; color: #fff; outline: none; font-family: monospace;"
+        >
+      </div>
+    </div>
+    
+    <!-- Font Size -->
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; margin-bottom: 8px; color: #9ca3af; font-size: 13px; font-weight: 600;">FONT SIZE: <span id="fontSizeValue">${currentTheme.font_size}px</span></label>
+      <input 
+        type="range" 
+        min="24" 
+        max="72" 
+        value="${currentTheme.font_size}"
+        oninput="currentTheme.font_size = this.value; document.getElementById('fontSizeValue').textContent = this.value + 'px'; updatePreview();"
+        style="width: 100%; height: 6px; background: rgba(167,139,250,0.3); border-radius: 3px; outline: none; cursor: pointer;"
+      >
+    </div>
+    
+    <!-- Overlay Darkness -->
+    <div style="margin-bottom: 25px;">
+      <label style="display: block; margin-bottom: 8px; color: #9ca3af; font-size: 13px; font-weight: 600;">OVERLAY DARKNESS: <span id="overlayValue">${Math.round(currentTheme.overlay_opacity * 100)}%</span></label>
+      <input 
+        type="range" 
+        min="0" 
+        max="80" 
+        value="${currentTheme.overlay_opacity * 100}"
+        oninput="currentTheme.overlay_opacity = this.value / 100; document.getElementById('overlayValue').textContent = this.value + '%'; updatePreview();"
+        style="width: 100%; height: 6px; background: rgba(167,139,250,0.3); border-radius: 3px; outline: none; cursor: pointer;"
+      >
+    </div>
+    
+    <!-- Save Button -->
+    <button 
+      onclick="saveTheme()" 
+      style="width: 100%; padding: 14px; background: linear-gradient(135deg, #a78bfa, #ec4899); border: none; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; font-size: 15px; margin-bottom: 10px;"
+    >
+      💾 Save Theme
+    </button>
+    
+    ${currentTheme.id ? `
+      <button 
+        onclick="deleteTheme()" 
+        style="width: 100%; padding: 14px; background: rgba(239,68,68,0.8); border: none; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; font-size: 15px;"
+      >
+        🗑️ Delete Theme
+      </button>
+    ` : ''}
+  `;
+  
+  document.getElementById('applyThemeBtn').disabled = false;
+}
+
+function setThemeType(type) {
+  currentTheme.type = type;
+  renderThemeEditor();
+  updatePreview();
+}
+
+function handleBackgroundUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    uploadedImageUrl = e.target.result;
+    currentTheme.background_url = uploadedImageUrl;
+    updatePreview();
+    renderThemeEditor();
+  };
+  reader.readAsDataURL(file);
+}
+
+function updatePreview() {
+  if (!currentTheme) return;
+  
+  const background = document.getElementById('previewBackground');
+  const overlay = document.getElementById('previewOverlay');
+  const title = document.getElementById('previewTitle');
+  const text = document.getElementById('previewText');
+  
+  // Update background
+  if (uploadedImageUrl) {
+    background.style.backgroundImage = `url(${uploadedImageUrl})`;
+  } else {
+    background.style.backgroundImage = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)';
+  }
+  
+  // Update overlay
+  overlay.style.background = `rgba(0,0,0,${currentTheme.overlay_opacity})`;
+  
+  // Update colors and font
+  title.style.color = currentTheme.title_color;
+  text.style.color = currentTheme.text_color;
+  text.style.fontSize = currentTheme.font_size + 'px';
+  
+  // Update example text based on type
+  if (currentTheme.type === 'bible') {
+    title.textContent = 'John 3:16';
+    text.innerHTML = 'For God so loved the world,<br>that he gave his only begotten Son';
+  } else {
+    title.textContent = 'Amazing Grace - VERSE';
+    text.innerHTML = 'Amazing grace, how sweet the sound<br>That saved a wretch like me';
+  }
+}
+async function saveTheme() {
+  if (!currentTheme.name) {
+    alert('Please enter a theme name!');
+    return;
+  }
+  
+  if (!uploadedImageUrl) {
+    alert('Please upload a background image!');
+    return;
+  }
+  
+  // Make sure background_url is set
+  currentTheme.background_url = uploadedImageUrl;
+  
+  const result = await ipcRenderer.invoke('save-theme', currentTheme);
+  if (result.success) {
+    alert('Theme saved! ✅');
+    currentTheme = result.theme;  // Update with ID from database
+    uploadedImageUrl = currentTheme.background_url;
+    await loadThemes();
+    renderThemeEditor();  // ← ADD THIS LINE! Refresh the editor
+  } else {
+    alert('Error: ' + result.error);
+  }
+}
+
+async function deleteTheme() {
+  if (!confirm(`Delete "${currentTheme.name}"?`)) return;
+  
+  const result = await ipcRenderer.invoke('delete-theme', currentTheme.id);
+  if (result.success) {
+    alert('Theme deleted!');
+    currentTheme = null;
+    uploadedImageUrl = null;
+    await loadThemes();
+    document.getElementById('themeEditor').innerHTML = '<div style="text-align: center; padding: 40px; color: #6b7280;">Select a theme or create a new one</div>';
+  }
+}
+
+function applyCurrentTheme() {
+  if (!currentTheme) return;
+  
+  ipcRenderer.send('apply-theme', {
+    background: uploadedImageUrl,
+    textColor: currentTheme.text_color,
+    titleColor: currentTheme.title_color,
+    fontSize: currentTheme.font_size,
+    overlay: currentTheme.overlay_opacity
+  });
+  
+  alert('Theme applied to display! 🎨');
+}
+
+</script>
+</body>
+</html>

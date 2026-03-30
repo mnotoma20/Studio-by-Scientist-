@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Sign Up - Studio by Scientist</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .auth-container {
+      background: rgba(26, 26, 46, 0.95);
+      border: 2px solid rgba(167, 139, 250, 0.3);
+      border-radius: 20px;
+      padding: 50px;
+      max-width: 500px;
+      width: 90%;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+      animation: slideIn 0.5s ease-out;
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    .logo-text {
+      font-size: 32px;
+      font-weight: 900;
+      background: linear-gradient(135deg, #a78bfa 0%, #ec4899 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+    }
+
+    .logo-tagline {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.6);
+      font-weight: 300;
+    }
+
+    .auth-title {
+      font-size: 28px;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 30px;
+      color: #fff;
+    }
+
+    .auth-subtitle {
+      text-align: center;
+      color: rgba(255, 255, 255, 0.7);
+      font-size: 15px;
+      margin-bottom: 25px;
+      line-height: 1.6;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      color: rgba(255, 255, 255, 0.8);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .form-input {
+      width: 100%;
+      padding: 14px 18px;
+      background: rgba(45, 45, 74, 0.8);
+      border: 2px solid rgba(167, 139, 250, 0.2);
+      border-radius: 10px;
+      color: #fff;
+      font-size: 15px;
+      transition: all 0.3s;
+      outline: none;
+    }
+
+    .form-input:focus {
+      border-color: #a78bfa;
+      background: rgba(45, 45, 74, 1);
+      box-shadow: 0 0 20px rgba(167, 139, 250, 0.2);
+    }
+
+    .form-input::placeholder {
+      color: rgba(255, 255, 255, 0.4);
+    }
+
+    .form-select {
+      width: 100%;
+      padding: 14px 18px;
+      background: rgba(45, 45, 74, 0.8);
+      border: 2px solid rgba(167, 139, 250, 0.2);
+      border-radius: 10px;
+      color: #fff;
+      font-size: 15px;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .form-select:focus {
+      border-color: #a78bfa;
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #a78bfa 0%, #ec4899 100%);
+      border: none;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 16px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 10px;
+      box-shadow: 0 10px 30px rgba(236, 72, 153, 0.3);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 15px 40px rgba(236, 72, 153, 0.5);
+    }
+
+    .btn-primary:active {
+      transform: translateY(0);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .auth-switch {
+      text-align: center;
+      margin-top: 25px;
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .auth-link {
+      color: #a78bfa;
+      text-decoration: none;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color 0.3s;
+    }
+
+    .auth-link:hover {
+      color: #ec4899;
+      text-decoration: underline;
+    }
+
+    .error-message {
+      background: rgba(239, 68, 68, 0.2);
+      border: 1px solid rgba(239, 68, 68, 0.5);
+      color: #fca5a5;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .error-message.show {
+      display: block;
+      animation: shake 0.4s;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-10px); }
+      75% { transform: translateX(10px); }
+    }
+
+    .success-message {
+      background: rgba(34, 197, 94, 0.2);
+      border: 1px solid rgba(34, 197, 94, 0.5);
+      color: #86efac;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    .success-message.show {
+      display: block;
+      animation: slideIn 0.4s;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      margin-right: 8px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .password-strength {
+      margin-top: 8px;
+      font-size: 12px;
+      color: rgba(255, 255, 255, 0.6);
+    }
+
+    .strength-bar {
+      height: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 2px;
+      margin-top: 5px;
+      overflow: hidden;
+    }
+
+    .strength-fill {
+      height: 100%;
+      width: 0%;
+      background: #ef4444;
+      transition: all 0.3s;
+      border-radius: 2px;
+    }
+
+    .strength-fill.weak { width: 33%; background: #ef4444; }
+    .strength-fill.medium { width: 66%; background: #f59e0b; }
+    .strength-fill.strong { width: 100%; background: #22c55e; }
+
+    .otp-input {
+      font-size: 28px !important;
+      text-align: center !important;
+      letter-spacing: 8px !important;
+      font-family: 'Courier New', monospace !important;
+    }
+  </style>
+</head>
+<body>
+  <!-- Signup Form -->
+  <div class="auth-container" id="signupContainer">
+    <div class="logo">
+      <div class="logo-text">STUDIO BY SCIENTIST</div>
+      <div class="logo-tagline">AI-Powered Church Presentations</div>
+    </div>
+
+    <h1 class="auth-title">Create Your Account</h1>
+
+    <div class="error-message" id="errorMessage"></div>
+    <div class="success-message" id="successMessage"></div>
+
+    <form id="signupForm">
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input
+          type="email"
+          class="form-input"
+          id="email"
+          placeholder="pastor@yourchurch.com"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input
+          type="password"
+          class="form-input"
+          id="password"
+          placeholder="Create a strong password"
+          required
+        />
+        <div class="password-strength">
+          <div class="strength-bar">
+            <div class="strength-fill" id="strengthFill"></div>
+          </div>
+          <span id="strengthText">Enter a password</span>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Confirm Password</label>
+        <input
+          type="password"
+          class="form-input"
+          id="confirmPassword"
+          placeholder="Re-enter your password"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Church Name</label>
+        <input
+          type="text"
+          class="form-input"
+          id="churchName"
+          placeholder="Winners Chapel Houston"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Location</label>
+        <input
+          type="text"
+          class="form-input"
+          id="location"
+          placeholder="Houston, Texas"
+          required
+        />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Church Size</label>
+        <select class="form-select" id="churchSize" required>
+          <option value="">Select size...</option>
+          <option value="small">Small (1-100 members)</option>
+          <option value="medium">Medium (100-500 members)</option>
+          <option value="large">Large (500-2000 members)</option>
+          <option value="mega">Mega (2000+ members)</option>
+        </select>
+      </div>
+
+      <button type="submit" class="btn-primary" id="submitBtn">
+        Create Account
+      </button>
+    </form>
+
+    <div class="auth-switch">
+      Already have an account? 
+      <a class="auth-link" onclick="goToSignIn()">Sign In</a>
+    </div>
+  </div>
+
+  <!-- OTP Verification Screen -->
+  <div class="auth-container" id="otpContainer" style="display: none;">
+    <div class="logo">
+      <div class="logo-text">STUDIO BY SCIENTIST</div>
+      <div class="logo-tagline">AI-Powered Church Presentations</div>
+    </div>
+
+    <h1 class="auth-title">Check Your Email! 📧</h1>
+    <p class="auth-subtitle">We sent a 8-digit code to <strong id="userEmail"></strong></p>
+
+    <div class="error-message" id="otpErrorMessage"></div>
+    <div class="success-message" id="otpSuccessMessage"></div>
+
+    <form id="otpForm">
+      <div class="form-group">
+        <label class="form-label">Confirmation Code</label>
+        <input
+          type="text"
+          class="form-input otp-input"
+          id="otpCode"
+          placeholder="00000000"
+          maxlength="8"
+          required
+          autofocus
+        />
+        <div style="text-align: center; margin-top: 10px; font-size: 13px; color: rgba(255, 255, 255, 0.6);">
+          Enter the 8-digit code from your email
+        </div>
+      </div>
+
+      <button type="submit" class="btn-primary" id="verifyBtn">
+        Verify & Continue
+      </button>
+
+      <div style="text-align: center; margin-top: 20px;">
+        <span style="color: rgba(255, 255, 255, 0.6); font-size: 14px;">
+          Didn't receive the code?
+        </span>
+        <a class="auth-link" onclick="resendCode()" style="margin-left: 5px;">Resend Code</a>
+      </div>
+
+      <div style="text-align: center; margin-top: 15px;">
+        <a class="auth-link" onclick="backToSignup()">← Back to Sign Up</a>
+      </div>
+    </form>
+  </div>
+
+  <script>
+  const { ipcRenderer } = require('electron');
+
+  const signupContainer = document.getElementById('signupContainer');
+  const otpContainer = document.getElementById('otpContainer');
+  const form = document.getElementById('signupForm');
+  const otpForm = document.getElementById('otpForm');
+  const submitBtn = document.getElementById('submitBtn');
+  const verifyBtn = document.getElementById('verifyBtn');
+  const errorMessage = document.getElementById('errorMessage');
+  const successMessage = document.getElementById('successMessage');
+  const otpErrorMessage = document.getElementById('otpErrorMessage');
+  const otpSuccessMessage = document.getElementById('otpSuccessMessage');
+  const passwordInput = document.getElementById('password');
+  const strengthFill = document.getElementById('strengthFill');
+  const strengthText = document.getElementById('strengthText');
+  
+  let userEmailForOTP = '';
+  let userPasswordForOTP = '';
+  let userChurchData = {};
+
+  // Password strength checker
+  passwordInput.addEventListener('input', (e) => {
+    const password = e.target.value;
+    const strength = checkPasswordStrength(password);
+    
+    strengthFill.className = 'strength-fill';
+    
+    if (strength.score === 0) {
+      strengthText.textContent = 'Enter a password';
+    } else if (strength.score === 1) {
+      strengthFill.classList.add('weak');
+      strengthText.textContent = 'Weak password';
+    } else if (strength.score === 2) {
+      strengthFill.classList.add('medium');
+      strengthText.textContent = 'Medium strength';
+    } else {
+      strengthFill.classList.add('strong');
+      strengthText.textContent = 'Strong password!';
+    }
+  });
+
+  function checkPasswordStrength(password) {
+    let score = 0;
+    if (password.length >= 8) score++;
+    if (password.match(/[a-z]/) && password.match(/[A-Z]/)) score++;
+    if (password.match(/\d/)) score++;
+    if (password.match(/[^a-zA-Z\d]/)) score++;
+    return { score: Math.min(score, 3) };
+  }
+
+  // Signup form submission
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    const churchName = document.getElementById('churchName').value.trim();
+    const location = document.getElementById('location').value.trim();
+    const churchSize = document.getElementById('churchSize').value;
+
+    errorMessage.classList.remove('show');
+    
+    if (password !== confirmPassword) {
+      showError('Passwords do not match!');
+      return;
+    }
+
+    if (password.length < 6) {
+      showError('Password must be at least 6 characters long');
+      return;
+    }
+
+    if (!churchSize) {
+      showError('Please select your church size');
+      return;
+    }
+
+    // Store for later use
+    userEmailForOTP = email;
+    userPasswordForOTP = password;
+    userChurchData = {
+      name: churchName,
+      location,
+      size: churchSize
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="loading"></span> Creating Account...';
+
+    ipcRenderer.send('auth-signup', {
+      email,
+      password,
+      churchData: userChurchData
+    });
+  });
+
+  // OTP form submission
+  otpForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    
+    const otpCode = document.getElementById('otpCode').value.trim();
+
+    otpErrorMessage.classList.remove('show');
+    
+    if (otpCode.length !== 8) {
+      showOtpError('Please enter the 8-digit code');
+      return;
+    }
+
+    verifyBtn.disabled = true;
+    verifyBtn.innerHTML = '<span class="loading"></span> Verifying...';
+
+    ipcRenderer.send('auth-verify-otp', {
+      email: userEmailForOTP,
+      token: otpCode,
+      type: 'signup'
+    });
+  });
+
+  // Listen for signup response
+  ipcRenderer.on('auth-signup-response', (event, response) => {
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'Create Account';
+
+    if (response.success) {
+      // Show OTP screen
+      signupContainer.style.display = 'none';
+      otpContainer.style.display = 'block';
+      document.getElementById('userEmail').textContent = userEmailForOTP;
+      document.getElementById('otpCode').focus();
+      showOtpSuccess('Check your email for the verification code!');
+    } else {
+      showError(response.error || 'Failed to create account. Please try again.');
+    }
+  });
+
+  // Listen for OTP verification response
+  ipcRenderer.on('auth-verify-otp-response', (event, response) => {
+    verifyBtn.disabled = false;
+    verifyBtn.textContent = 'Verify & Continue';
+
+    if (response.success) {
+      showOtpSuccess('Verified! Opening app...');
+      setTimeout(() => {
+        ipcRenderer.send('auth-complete');
+      }, 1500);
+    } else {
+      showOtpError(response.error || 'Invalid code. Please try again.');
+    }
+  });
+
+  function showError(message) {
+    errorMessage.textContent = message;
+    errorMessage.classList.add('show');
+    setTimeout(() => {
+      errorMessage.classList.remove('show');
+    }, 5000);
+  }
+
+  function showSuccess(message) {
+    successMessage.textContent = message;
+    successMessage.classList.add('show');
+  }
+
+  function showOtpError(message) {
+    otpErrorMessage.textContent = message;
+    otpErrorMessage.classList.add('show');
+    setTimeout(() => {
+      otpErrorMessage.classList.remove('show');
+    }, 5000);
+  }
+
+  function showOtpSuccess(message) {
+    otpSuccessMessage.textContent = message;
+    otpSuccessMessage.classList.add('show');
+  }
+
+  function resendCode() {
+    ipcRenderer.send('auth-resend-otp', { email: userEmailForOTP });
+    showOtpSuccess('Code resent! Check your email.');
+  }
+
+  function backToSignup() {
+    otpContainer.style.display = 'none';
+    signupContainer.style.display = 'block';
+    document.getElementById('otpCode').value = '';
+    otpErrorMessage.classList.remove('show');
+    otpSuccessMessage.classList.remove('show');
+  }
+
+  function goToSignIn() {
+    ipcRenderer.send('go-to-signin');
+  }
+
+  console.log('✅ Sign Up screen loaded');
+  </script>
+</body>
+</html>
