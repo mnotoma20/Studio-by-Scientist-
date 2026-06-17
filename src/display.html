@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Studio - Display</title>
+  <link rel="icon" type="image/png" href="../assets/logo.png">
   <style>
     * {
       margin: 0;
@@ -13,21 +14,22 @@
     body {
       background: #000;
       color: #fff;
-      font-family: 'Helvetica Neue', Arial, sans-serif;
+      font-family: Arial, sans-serif;
       height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 80px;
+      justify-content: safe center;
+      padding: 4px 12px;
       overflow: hidden;
     }
 
     #content {
       animation: fadeIn 0.8s ease-in-out;
       text-align: center;
-      max-width: 95%;
+      max-width: 100%;
       width: 100%;
+      padding-bottom: 0;
     }
 
     @keyframes fadeIn {
@@ -60,16 +62,6 @@
       gap: 40px;
     }
 
-    .logo-text {
-      font-size: 80px;
-      font-weight: 900;
-      background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      letter-spacing: 4px;
-    }
-
     .tagline {
       font-size: 36px;
       color: rgba(255, 255, 255, 0.8);
@@ -87,32 +79,92 @@
 
     .verse-reference {
       color: #FFD700;
-      font-size: 48px;
-      font-weight: 800;
-      margin-bottom: 60px;
+      font-size: 110px;
+      font-family: 'Arial Black', 'Arial Bold', Arial, sans-serif;
+      font-weight: 900;
+      margin-bottom: 16px;
       text-transform: uppercase;
       letter-spacing: 4px;
       text-shadow: 0 0 40px rgba(255, 215, 0, 0.6);
+      -webkit-text-stroke: 1px rgba(255,215,0,0.3);
       animation: slideIn 0.6s ease-out;
     }
 
     .verse-text {
       color: #fff;
-      font-size: 56px;
-      line-height: 1.6;
-      font-weight: 400;
-      max-width: 1400px;
+      font-size: 175px;
+      line-height: 1.3;
+      font-family: 'Arial Black', 'Arial Bold', Arial, sans-serif;
+      font-weight: 900;
+      max-width: 100%;
       margin: 0 auto;
       text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+      -webkit-text-stroke: 2px rgba(255,255,255,0.25);
       animation: slideIn 0.8s ease-out 0.2s both;
+      white-space: normal;
     }
 
     .verse-translation {
       color: rgba(255, 215, 0, 0.7);
-      font-size: 28px;
-      margin-top: 40px;
-      font-weight: 300;
+      font-size: 68px;
+      margin-top: 12px;
+      font-weight: 700;
       animation: fadeIn 1s ease-out 0.4s both;
+    }
+
+    /* Prayer Combined Screen */
+    .prayer-combined {
+      display: none;
+    }
+
+    .prayer-combined.active {
+      display: block;
+    }
+
+    .prayer-combined-title {
+      color: #fff;
+      font-size: 96px;
+      font-family: 'Arial Black', 'Arial Bold', Arial, sans-serif;
+      font-weight: 900;
+      margin-bottom: 10px;
+      animation: slideIn 0.6s ease-out;
+    }
+
+    .prayer-combined-text {
+      color: rgba(255, 255, 255, 0.88);
+      font-size: 100px;
+      line-height: 1.3;
+      font-family: 'Arial Black', 'Arial Bold', Arial, sans-serif;
+      font-weight: 900;
+      margin-bottom: 16px;
+      white-space: pre-wrap;
+      -webkit-text-stroke: 1.5px rgba(255,255,255,0.2);
+      animation: slideIn 0.8s ease-out 0.2s both;
+    }
+
+    .prayer-verse-box {
+      border: 2px solid #FFD700;
+      border-radius: 14px;
+      padding: 16px 32px;
+      background: rgba(255, 215, 0, 0.06);
+      animation: fadeIn 1s ease-out 0.4s both;
+    }
+
+    .prayer-verse-ref {
+      color: #FFD700;
+      font-size: 76px;
+      font-family: 'Arial Black', 'Arial Bold', Arial, sans-serif;
+      font-weight: 900;
+      margin-bottom: 8px;
+      letter-spacing: 2px;
+    }
+
+    .prayer-verse-text {
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 112px;
+      line-height: 1.4;
+      font-family: 'Arial Black', 'Arial Bold', Arial, sans-serif;
+      font-weight: 900;
     }
 
     /* Multi-verse indicator */
@@ -134,8 +186,20 @@
   <div id="content">
     <!-- Welcome Screen -->
     <div class="welcome" id="welcomeScreen">
-      <div class="logo-text">STUDIO BY SCIENTIST</div>
-      <div class="tagline">AI-Powered Church Presentations</div>
+      <img src="../assets/logo.png" alt="Studio by Scientist" style="width: 380px; height: auto; margin-bottom: 40px;">
+      <div class="tagline" style="color: rgba(255,255,255,0.7); font-size: 52px; font-weight: 300; letter-spacing: 6px;">
+        AI-Powered Church Presentations
+      </div>
+    </div>
+
+    <!-- Prayer Combined Screen -->
+    <div class="prayer-combined" id="prayerCombinedScreen">
+      <div class="prayer-combined-title" id="prayerTitle"></div>
+      <div class="prayer-combined-text" id="prayerText"></div>
+      <div class="prayer-verse-box" id="prayerVerseBox">
+        <div class="prayer-verse-ref" id="prayerVerseRef"></div>
+        <div class="prayer-verse-text" id="prayerVerseText"></div>
+      </div>
     </div>
 
     <!-- Verse Display -->
@@ -146,11 +210,102 @@
     </div>
   </div>
 
+  <!-- Full-screen background image overlay — fills edge to edge, no bars, no cropping -->
+  <div id="bgImageOverlay" style="display:none; position:fixed; inset:0; z-index:3; background:#000;">
+    <img id="bgImageEl" src="" style="width:100%; height:100%; display:block; object-fit:fill;" />
+  </div>
+
+  <!-- PPTX slide overlay — sits above everything, avoids clobbering verse/welcome DOM -->
+  <div id="pptxOverlay" style="display:none; position:fixed; inset:0; z-index:5; overflow:hidden;"></div>
+
+  <!-- Lower Third overlay — TV-style broadcast bar, sits above all content -->
+  <div id="lowerThird" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:30; pointer-events:none;">
+    <div style="
+      background: linear-gradient(to right, rgba(0,0,0,0.92) 0%, rgba(15,8,30,0.96) 40%, rgba(15,8,30,0.96) 60%, rgba(0,0,0,0.92) 100%);
+      border-top: 3px solid #ec4899;
+      padding: 16px 56px 20px;
+      display: flex; flex-direction: column; gap: 4px;
+    ">
+      <div id="ltPastorName" style="color: #ec4899; font-size: 22px; font-weight: 700; text-transform: uppercase; letter-spacing: 3px; font-family: Arial, sans-serif; display: none;"></div>
+      <div id="ltPoint" style="color: #ffffff; font-size: 44px; font-weight: 900; font-family: 'Arial Black', Arial, sans-serif; text-shadow: 0 2px 12px rgba(0,0,0,0.8); line-height: 1.2;"></div>
+      <div id="ltScripture" style="color: #FFD700; font-size: 28px; font-weight: 700; font-family: 'Arial Black', Arial, sans-serif; text-shadow: 0 0 20px rgba(255,215,0,0.4); letter-spacing: 1px; display: none; line-height: 1.3;"></div>
+    </div>
+  </div>
+
   <!-- Verse counter for multi-verse display -->
   <div class="verse-counter" id="verseCounter" style="display: none;"></div>
 
+  <!-- Church Logo Watermark -->
+  <img id="churchLogoWatermark" style="
+    display: none;
+    position: fixed;
+    bottom: 22px;
+    left: 28px;
+    width: 72px;
+    height: 72px;
+    object-fit: contain;
+    opacity: 0.35;
+    z-index: 10;
+    border-radius: 8px;
+    pointer-events: none;
+  ">
+
+  <!-- Countdown Timer (position set dynamically) -->
+  <div id="countdownTimer" style="display: none; position: fixed; bottom: 40px; right: 40px; background: rgba(0,0,0,0.75); padding: 18px 30px; border-radius: 12px; font-size: 64px; font-weight: 900; color: #FFD700; border: 2px solid rgba(255,215,0,0.5); font-family: monospace; letter-spacing: 4px; text-shadow: 0 0 20px rgba(255,215,0,0.6); z-index: 50;">00:00</div>
+
+  <!-- Stage Clock — top-left, stage/full profile only -->
+  <div id="stageClock" style="
+    display: none;
+    position: fixed; top: 20px; left: 30px;
+    color: rgba(255,255,255,0.6); font-size: 28px;
+    font-family: monospace; font-weight: 300; z-index: 50;
+  "></div>
+
+  <!-- Next Item Indicator — bottom-left, stage/full profile only -->
+  <div id="nextItemIndicator" style="
+    display: none;
+    position: fixed; bottom: 30px; left: 30px;
+    background: rgba(0,0,0,0.6); border-left: 3px solid #a78bfa;
+    padding: 10px 16px; border-radius: 0 8px 8px 0;
+    max-width: 400px; z-index: 50;
+  ">
+    <div style="color: #6b7280; font-size: 10px; font-weight: 700; letter-spacing: 2px; margin-bottom: 4px;">UP NEXT</div>
+    <div id="nextItemText" style="color: #fff; font-size: 16px; font-weight: 600;"></div>
+  </div>
+
   <script>
   const { ipcRenderer } = require('electron');
+
+  // Read profile from URL query params (set by main.js createDisplayWindows)
+  const urlParams = new URLSearchParams(window.location.search);
+  const displayProfile = urlParams.get('profile') || 'clean';
+  const screenIndex = parseInt(urlParams.get('screenIndex') || '1');
+
+  function applyProfile() {
+    const isStage = displayProfile === 'stage' || displayProfile === 'full';
+    document.getElementById('countdownTimer').style.display = 'none'; // always start hidden
+    document.getElementById('nextItemIndicator').style.display = isStage ? 'block' : 'none';
+    document.getElementById('stageClock').style.display = isStage ? 'block' : 'none';
+  }
+  applyProfile();
+
+  // Stage clock — ticks every second on stage/full profiles
+  if (displayProfile === 'stage' || displayProfile === 'full') {
+    setInterval(() => {
+      const clockEl = document.getElementById('stageClock');
+      if (clockEl) {
+        clockEl.textContent = new Date().toLocaleTimeString('en-US', {
+          hour: '2-digit', minute: '2-digit', second: '2-digit'
+        });
+      }
+    }, 1000);
+  }
+
+  // Next-item update from schedule panel
+  ipcRenderer.on('set-next-item', (event, data) => {
+    const el = document.getElementById('nextItemText');
+    if (el) el.textContent = data.title || '';
+  });
 
   const welcomeScreen = document.getElementById('welcomeScreen');
   const verseScreen = document.getElementById('verseScreen');
@@ -158,61 +313,84 @@
   const verseText = document.getElementById('verseText');
   const verseTrans = document.getElementById('verseTrans');
   const verseCounter = document.getElementById('verseCounter');
+  const prayerCombinedScreen = document.getElementById('prayerCombinedScreen');
 
   let currentVerseIndex = 0;
   let totalVerses = 1;
+  let showSongTitle = true; // toggled from control panel; persists across slides
 
-
+  // Toggle song title/author visibility (persistent across songs)
+  ipcRenderer.on('set-song-title-visibility', (_event, visible) => {
+    showSongTitle = !!visible;
+    // If a song is currently showing, update live
+    if (verseScreen.classList.contains('active') && verseText.dataset.wordCount === '0') {
+      verseRef.style.display = showSongTitle ? '' : 'none';
+      requestAnimationFrame(() => autoFitContent());
+    }
+  });
 
   // Listen for verse display
   ipcRenderer.on('show-verse', (event, verse) => {
     console.log('📺 Received verse:', verse);
-    
-    // Hide welcome, show verse
+    resetInlineStyles();
+
     welcomeScreen.style.display = 'none';
+    prayerCombinedScreen.classList.remove('active');
     verseScreen.classList.add('active');
+
+    if (!currentDisplayTheme) document.body.style.backgroundImage = '';
 
     // Update content
     verseRef.textContent = verse.reference;
-    verseText.textContent = verse.text.trim();
+    verseRef.style.display = ''; // verses always show the reference
+    const cleanText = verse.text.replace(/[\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+    verseText.textContent = cleanText;
     verseTrans.textContent = `(${verse.translation})`;
+    verseText.dataset.wordCount = cleanText.split(/\s+/).length;
+    delete verseText.dataset.userSize;
 
-  // RE-APPLY THEME IF ONE IS SET! ← ADD THIS!
   if (currentDisplayTheme) {
     applyThemeColors(currentDisplayTheme);
   }
+  if (verse.fontSize) {
+    verseText.style.fontSize = verse.fontSize + 'px';
+    verseText.dataset.userSize = '1';
+  }
 
-    // Trigger animation
     document.getElementById('content').style.animation = 'none';
     setTimeout(() => {
       document.getElementById('content').style.animation = 'fadeIn 0.8s ease-in-out';
+      setTimeout(() => autoFitContent(), 50);
     }, 10);
   });
 ipcRenderer.on('show-lyrics', (event, lyricsData) => {
   console.log('📺 Displaying lyrics:', lyricsData);
-  
+  resetInlineStyles();
+
   welcomeScreen.style.display = 'none';
+  prayerCombinedScreen.classList.remove('active');
   verseScreen.classList.add('active');
+
+  if (!currentDisplayTheme) document.body.style.backgroundImage = '';
   
-  // CHANGE FORMAT TO "SONG - AUTHOR"
-  const displayTitle = lyricsData.author 
+  // Format: "SONG - AUTHOR"
+  const displayTitle = lyricsData.author
     ? `${lyricsData.title} - ${lyricsData.author}`
     : lyricsData.title;
-  
+
   verseRef.textContent = displayTitle;
+  // Honor the show-song-title toggle (persistent flag set from control panel)
+  verseRef.style.display = showSongTitle ? '' : 'none';
   verseText.textContent = lyricsData.lyrics || 'No lyrics available';
   verseTrans.textContent = '';
+  verseText.dataset.wordCount = '0'; // lyrics: skip smart sizing
   
-  // Apply custom font size
-  if (lyricsData.fontSize) {
-    verseText.style.fontSize = lyricsData.fontSize + 'px';
-  }
-  
-  // Re-apply theme colors if set
+  // STEP 1: Apply theme colors FIRST (if set)
   if (currentDisplayTheme) {
     applyThemeColors(currentDisplayTheme);
   }
-   // THEN APPLY CUSTOM LYRICS FONT SIZE (overrides theme!)
+  
+  // STEP 2: THEN apply custom lyrics font size (overrides theme!)
   if (lyricsData.fontSize) {
     verseText.style.fontSize = lyricsData.fontSize + 'px';
     console.log('✅ Applied lyrics font size:', lyricsData.fontSize + 'px');
@@ -221,9 +399,48 @@ ipcRenderer.on('show-lyrics', (event, lyricsData) => {
   document.getElementById('content').style.animation = 'none';
   setTimeout(() => {
     document.getElementById('content').style.animation = 'fadeIn 0.8s ease-in-out';
+    requestAnimationFrame(() => autoFitContent());
   }, 10);
 });
 
+
+ipcRenderer.on('show-prayer-combined', (event, data) => {
+  console.log('🙏 Showing prayer combined:', data);
+  resetInlineStyles();
+
+  welcomeScreen.style.display = 'none';
+  verseScreen.classList.remove('active');
+  prayerCombinedScreen.classList.add('active');
+
+  if (!currentDisplayTheme) document.body.style.backgroundImage = '';
+
+  document.getElementById('prayerTitle').textContent = data.title || 'Prayer';
+  document.getElementById('prayerText').textContent = data.text || '';
+
+  if (data.verse) {
+    document.getElementById('prayerVerseRef').textContent = data.verse.reference;
+    document.getElementById('prayerVerseText').textContent = data.verse.text.replace(/[\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+    document.getElementById('prayerVerseBox').style.display = 'block';
+  } else {
+    document.getElementById('prayerVerseBox').style.display = 'none';
+  }
+
+  // Apply theme colors first, then override with per-slide colors if set
+  if (currentDisplayTheme) applyThemeColors(currentDisplayTheme);
+  if (data.bodyFontSize) document.getElementById('prayerText').style.fontSize = data.bodyFontSize + 'px';
+  if (data.titleColor) document.getElementById('prayerTitle').style.color = data.titleColor;
+  if (data.bodyColor)  document.getElementById('prayerText').style.color  = data.bodyColor;
+  if (data.boxColor) {
+    document.getElementById('prayerVerseBox').style.borderColor = data.boxColor;
+    document.getElementById('prayerVerseRef').style.color       = data.boxColor;
+  }
+
+  document.getElementById('content').style.animation = 'none';
+  setTimeout(() => {
+    document.getElementById('content').style.animation = 'fadeIn 0.8s ease-in-out';
+    autoFitContent();
+  }, 10);
+});
 
 // Apply theme to display window
 let currentDisplayTheme = null;
@@ -280,29 +497,61 @@ ipcRenderer.on('apply-theme', (event, themeData) => {
   console.log('✅ Theme applied successfully!');
 });
 
+// Display a background image fullscreen
+ipcRenderer.on('show-background', (event, imageUrl) => {
+  console.log('🖼️ Showing background:', imageUrl);
+  
+  // Hide welcome and verse screens
+  welcomeScreen.style.display = 'none';
+  verseScreen.classList.remove('active');
+  verseCounter.style.display = 'none';
+  
+  // Use dedicated overlay so image fills edge to edge with no bars and no cropping
+  const bgOverlay = document.getElementById('bgImageOverlay');
+  const bgImg = document.getElementById('bgImageEl');
+  bgImg.src = imageUrl;
+  bgOverlay.style.display = 'block';
+  document.body.style.backgroundImage = '';
+  
+  // Remove any theme overlay
+  const existingOverlay = document.getElementById('themeOverlay');
+  if (existingOverlay) existingOverlay.remove();
+});
+
 // HELPER FUNCTION TO APPLY COLORS
 function applyThemeColors(themeData) {
+  // Verse / lyrics screen
   const verseRef = document.getElementById('verseRef');
   const verseText = document.getElementById('verseText');
-  
-  if (verseRef) {
-    verseRef.style.color = themeData.titleColor;
-  }
-  
+  if (verseRef) verseRef.style.color = themeData.titleColor;
   if (verseText) {
     verseText.style.color = themeData.textColor;
     verseText.style.fontSize = themeData.fontSize + 'px';
   }
+
+  // Prayer combined screen
+  const prayerTitle = document.getElementById('prayerTitle');
+  const prayerText  = document.getElementById('prayerText');
+  const prayerVerseBox = document.getElementById('prayerVerseBox');
+  const prayerVerseRef = document.getElementById('prayerVerseRef');
+  const prayerVerseText = document.getElementById('prayerVerseText');
+
+  if (prayerTitle)    prayerTitle.style.color    = themeData.titleColor;
+  if (prayerText)     prayerText.style.color      = themeData.textColor;
+  if (prayerVerseBox) prayerVerseBox.style.borderColor = themeData.boxColor || '#FFD700';
+  if (prayerVerseRef) prayerVerseRef.style.color  = themeData.boxColor || '#FFD700';
+  if (prayerVerseText) prayerVerseText.style.color = themeData.textColor;
 }
   // Listen for multi-verse display (with counter)
   ipcRenderer.on('show-verse-multi', (event, data) => {
     console.log('📺 Received verse:', data.verse, `(${data.current}/${data.total})`);
-    
+
     currentVerseIndex = data.current;
     totalVerses = data.total;
 
-    // Hide welcome, show verse
+    // Hide welcome and prayer combined, show verse
     welcomeScreen.style.display = 'none';
+    prayerCombinedScreen.classList.remove('active');
     verseScreen.classList.add('active');
 
     // Show counter if multiple verses
@@ -315,7 +564,7 @@ function applyThemeColors(themeData) {
 
     // Update content
     verseRef.textContent = data.verse.reference;
-    verseText.textContent = data.verse.text.trim();
+    verseText.textContent = data.verse.text.replace(/[\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim();
     verseTrans.textContent = `(${data.verse.translation})`;
 
     // Trigger animation
@@ -326,13 +575,171 @@ function applyThemeColors(themeData) {
   });
 
   // Listen for clear screen
-  ipcRenderer.on('clear-display', () => {
-    console.log('🧹 Clearing display');
-    welcomeScreen.style.display = 'flex';
-    verseScreen.classList.remove('active');
-    verseCounter.style.display = 'none';
-    document.getElementById('content').style.animation = 'fadeIn 0.8s ease-in-out';
+  ipcRenderer.on('show-pptx-slide', (event, slide) => {
+    const overlay = document.getElementById('pptxOverlay');
+
+    // Image mode (LibreOffice): show the exact rendered slide, centered on black
+    if (slide.image) {
+      overlay.style.background = '#000';
+      overlay.innerHTML = `<img src="${slide.image}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:contain;" />`;
+      overlay.style.display = 'block';
+      return;
+    }
+
+    // Background on the overlay itself (not body), so clearing restores default
+    if (slide.bgImage) {
+      overlay.style.background = `url('${slide.bgImage}') center/cover no-repeat`;
+    } else {
+      overlay.style.background = slide.background || '#1a1a2e';
+    }
+
+    let html = '';
+
+    // Images first (rendered behind text, matching slide layering)
+    for (const img of (slide.images || [])) {
+      html += `<img src="${img.src}" style="position:absolute;left:${img.x.toFixed(2)}%;top:${img.y.toFixed(2)}%;width:${img.w.toFixed(2)}%;height:${img.h.toFixed(2)}%;object-fit:contain;" />`;
+    }
+
+    for (const shape of (slide.shapes || [])) {
+      html += `<div style="position:absolute;left:${shape.x.toFixed(2)}%;top:${shape.y.toFixed(2)}%;width:${shape.w.toFixed(2)}%;height:${shape.h.toFixed(2)}%;overflow:hidden;display:flex;flex-direction:column;justify-content:center;">`;
+      for (const para of (shape.paragraphs || [])) {
+        html += `<p style="margin:0;padding:0 4px;text-align:${para.align};line-height:1.2;">`;
+        for (const run of (para.runs || [])) {
+          const px = (run.size * (screen.height / 540)).toFixed(1);
+          // Respect the original weight — don't force every run to Arial Black
+          html += `<span style="font-size:${px}px;color:${run.color};font-weight:${run.bold?'800':'400'};font-family:Arial,Helvetica,sans-serif;text-shadow:0 2px 8px rgba(0,0,0,0.4);">${run.text}</span>`;
+        }
+        html += '</p>';
+      }
+      html += '</div>';
+    }
+    overlay.innerHTML = html;
+    overlay.style.display = 'block';
   });
+
+  ipcRenderer.on('clear-display', () => {
+  console.log('🧹 Clearing display');
+  welcomeScreen.style.display = 'flex';
+  verseScreen.classList.remove('active');
+  prayerCombinedScreen.classList.remove('active');
+  verseCounter.style.display = 'none';
+  stopCountdown();
+
+  // Clear all overlays
+  const overlay = document.getElementById('pptxOverlay');
+  if (overlay) { overlay.style.display = 'none'; overlay.innerHTML = ''; }
+  const bgOv = document.getElementById('bgImageOverlay');
+  if (bgOv) { bgOv.style.display = 'none'; document.getElementById('bgImageEl').src = ''; }
+
+  document.body.style.background = '';
+  document.body.style.backgroundImage = '';
+
+  document.getElementById('content').style.animation = 'fadeIn 0.8s ease-in-out';
+  // Also clear lower third on screen clear
+  document.getElementById('lowerThird').style.display = 'none';
+  resetInlineStyles();
+});
+
+  // Lower Third handlers
+  ipcRenderer.on('show-lower-third', (_event, data) => {
+    const lt = document.getElementById('lowerThird');
+    const nameEl = document.getElementById('ltPastorName');
+    const pointEl = document.getElementById('ltPoint');
+    const scriptureEl = document.getElementById('ltScripture');
+
+    pointEl.textContent = data.point || '';
+
+    if (data.pastorName) {
+      nameEl.textContent = data.pastorName;
+      nameEl.style.display = 'block';
+    } else {
+      nameEl.style.display = 'none';
+    }
+
+    if (data.scripture) {
+      const refs = data.scripture.split('/').map(r => r.trim()).filter(Boolean);
+      if (refs.length <= 1) {
+        scriptureEl.innerHTML = `<span style="font-size:28px;">${refs[0] || data.scripture}</span>`;
+      } else {
+        const [first, ...rest] = refs;
+        scriptureEl.innerHTML = `<span style="font-size:28px;">${first}</span><span style="font-size:20px;color:#d4af37;margin-left:12px;">/ ${rest.join(' / ')}</span>`;
+      }
+      scriptureEl.style.display = 'block';
+    } else {
+      scriptureEl.style.display = 'none';
+    }
+
+    lt.style.display = 'block';
+  });
+
+  ipcRenderer.on('hide-lower-third', () => {
+    document.getElementById('lowerThird').style.display = 'none';
+  });
+
+  // Countdown timer
+  let countdownInterval = null;
+  let countdownSeconds = 0;
+  let countdownEndTime = null; // "HH:MM" for real-clock mode
+
+  function calcSecondsUntil(hhMM) {
+    const [h, m] = hhMM.split(':').map(Number);
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(h, m, 0, 0);
+    return Math.round((target - now) / 1000);
+  }
+
+  ipcRenderer.on('start-countdown', (event, payload) => {
+    stopCountdown();
+    const el = document.getElementById('countdownTimer');
+    el.style.display = 'block';
+    refreshContentPadding();
+
+    if (typeof payload === 'object' && payload.endTime) {
+      countdownEndTime = payload.endTime;
+      countdownSeconds = calcSecondsUntil(payload.endTime);
+    } else {
+      countdownEndTime = null;
+      countdownSeconds = payload;
+    }
+
+    updateCountdownDisplay();
+    countdownInterval = setInterval(() => {
+      if (countdownEndTime) {
+        countdownSeconds = calcSecondsUntil(countdownEndTime);
+      } else {
+        countdownSeconds--;
+      }
+      updateCountdownDisplay();
+    }, 1000);
+  });
+
+  ipcRenderer.on('stop-countdown', () => {
+    stopCountdown();
+  });
+
+  function stopCountdown() {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+    document.getElementById('countdownTimer').style.display = 'none';
+    refreshContentPadding();
+  }
+
+  function updateCountdownDisplay() {
+    const el = document.getElementById('countdownTimer');
+    const overtime = countdownSeconds < 0;
+    const abs = Math.abs(countdownSeconds);
+    const m = Math.floor(abs / 60);
+    const s = abs % 60;
+    el.textContent = (overtime ? '-' : '') + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    if (countdownSeconds <= 10) {
+      el.style.color = '#ff4444';
+      el.style.borderColor = 'rgba(255,68,68,0.6)';
+    } else {
+      el.style.color = '#FFD700';
+      el.style.borderColor = 'rgba(255,215,0,0.5)';
+    }
+  }
 
   // Keyboard shortcuts for display window
   document.addEventListener('keydown', (e) => {
@@ -354,7 +761,123 @@ function applyThemeColors(themeData) {
     }
   });
 
+  let _timerPos = 'bottom-right';
+
+  function applyPosition(el, position, gap) {
+    const g = gap || 24;
+    el.style.top = ''; el.style.right = ''; el.style.bottom = ''; el.style.left = '';
+    if (position === 'top-left')          { el.style.top = g+'px'; el.style.left = g+'px'; }
+    else if (position === 'top-right')    { el.style.top = g+'px'; el.style.right = g+'px'; }
+    else if (position === 'bottom-left')  { el.style.bottom = g+'px'; el.style.left = g+'px'; }
+    else                                  { el.style.bottom = g+'px'; el.style.right = g+'px'; }
+  }
+
+  function refreshContentPadding() {
+    // No-op — #content has fixed 160px bottom padding that always clears the timer
+  }
+
+  ipcRenderer.on('show-logo-watermark', (_event, payload) => {
+    const el = document.getElementById('churchLogoWatermark');
+    const url = typeof payload === 'string' ? payload : payload?.url;
+    const pos = (typeof payload === 'object' && payload?.position) || 'bottom-left';
+    if (url) {
+      el.src = url;
+      el.style.display = 'block';
+      applyPosition(el, pos, 24);
+    } else {
+      el.style.display = 'none';
+    }
+  });
+
+  ipcRenderer.on('set-timer-position', (_event, position) => {
+    _timerPos = position;
+    applyPosition(document.getElementById('countdownTimer'), position, 40);
+    refreshContentPadding();
+  });
+
+  function resetInlineStyles() {
+    // Hide overlays whenever new content takes over
+    const overlay = document.getElementById('pptxOverlay');
+    if (overlay) { overlay.style.display = 'none'; overlay.innerHTML = ''; }
+    const bgOverlay = document.getElementById('bgImageOverlay');
+    if (bgOverlay) { bgOverlay.style.display = 'none'; document.getElementById('bgImageEl').src = ''; }
+
+    // Clear all inline font overrides so CSS defaults apply cleanly each slide
+    ['verseText','verseRef','verseTrans'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.style.fontSize = ''; el.style.color = ''; }
+    });
+    ['prayerTitle','prayerText','prayerVerseRef','prayerVerseText'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) { el.style.fontSize = ''; el.style.color = ''; }
+    });
+    document.getElementById('content').style.transform = '';
+  }
+
+  function autoFitContent() {
+    const content = document.getElementById('content');
+    content.style.transform = '';
+
+    const vt = document.getElementById('verseText');
+    const vr = document.getElementById('verseRef');
+    const vtr = document.getElementById('verseTrans');
+    const wordCount = parseInt(vt?.dataset.wordCount || '0');
+
+    // Bible verses (wordCount > 0) with no manual override → fill the screen.
+    // Binary-search the largest verse font that still fits the screen height,
+    // so the verse uses the whole display instead of floating in the middle.
+    if (wordCount > 0 && !vt?.dataset.userSize) {
+      const targetH = window.innerHeight - 16;
+      let lo = 60, hi = 480, best = 60;
+      for (let i = 0; i < 16; i++) {
+        const mid = Math.floor((lo + hi) / 2);
+        vt.style.fontSize = mid + 'px';
+        if (vr)  vr.style.fontSize  = Math.round(mid * 0.5) + 'px';
+        if (vtr) vtr.style.fontSize = Math.round(mid * 0.34) + 'px';
+        if (content.scrollHeight <= targetH) { best = mid; lo = mid + 1; }
+        else { hi = mid - 1; }
+      }
+      vt.style.fontSize = best + 'px';
+      if (vr)  vr.style.fontSize  = Math.round(best * 0.5) + 'px';
+      if (vtr) vtr.style.fontSize = Math.round(best * 0.34) + 'px';
+      return;
+    }
+
+    // Lyrics / prayer / manual size → keep their size, shrink only if overflowing
+    const maxH = window.innerHeight - 24;
+    if (content.scrollHeight <= maxH) return;
+    const scale = maxH / content.scrollHeight;
+    const MIN = 64;
+    content.querySelectorAll('.verse-text, .verse-reference, .verse-translation, .prayer-combined-title, .prayer-combined-text, .prayer-verse-ref, .prayer-verse-text').forEach(el => {
+      const current = parseFloat(window.getComputedStyle(el).fontSize);
+      el.style.fontSize = Math.max(MIN, Math.floor(current * scale)) + 'px';
+    });
+  }
+
+  ipcRenderer.on('update-font-size', (_event, size) => {
+    const vt = document.getElementById('verseText');
+    const pt = document.getElementById('prayerText');
+    const pvt = document.getElementById('prayerVerseText');
+    if (vt) { vt.style.fontSize = size + 'px'; vt.dataset.userSize = '1'; }
+    if (pt) pt.style.fontSize = size + 'px';
+    if (pvt) pvt.style.fontSize = size + 'px';
+    // Re-fit so the manual size fills the screen without leftover scaling drift
+    autoFitContent();
+  });
+
+  ipcRenderer.on('update-text-stroke', (_event, px) => {
+    const strokeVal = px > 0 ? `${px}px rgba(255,255,255,0.3)` : '';
+    const vt = document.getElementById('verseText');
+    const pt = document.getElementById('prayerText');
+    const pvt = document.getElementById('prayerVerseText');
+    if (vt)  vt.style.webkitTextStroke  = strokeVal;
+    if (pt)  pt.style.webkitTextStroke  = strokeVal;
+    if (pvt) pvt.style.webkitTextStroke = strokeVal;
+  });
+
   console.log('✅ Display window ready!');
+
+
   </script>
 </body>
 </html>

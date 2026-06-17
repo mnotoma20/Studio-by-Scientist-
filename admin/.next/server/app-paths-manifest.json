@@ -1,0 +1,5 @@
+{
+  "/api/songs/publish/route": "app/api/songs/publish/route.js",
+  "/songs/page": "app/songs/page.js",
+  "/dashboard/page": "app/dashboard/page.js"
+}

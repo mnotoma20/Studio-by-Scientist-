@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST="{\"components/Hero.tsx -> ./ThreeBackground\":{\"id\":\"components/Hero.tsx -> ./ThreeBackground\",\"files\":[\"static/chunks/_app-pages-browser_components_ThreeBackground_tsx.js\"]}}"

@@ -4,7 +4,8 @@
   "description": "AI-Powered Church Presentation Software",
   "main": "src/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "env -u ELECTRON_RUN_AS_NODE electron .",
+    "build-win": "electron-builder --win"
   },
   "keywords": [
     "church",
@@ -16,10 +17,76 @@
   "license": "MIT",
   "dependencies": {
     "@supabase/supabase-js": "^2.98.0",
+    "dotenv": "^17.4.2",
+    "electron-log": "^5.4.3",
     "electron-store": "^8.1.0",
-    "node-fetch": "^3.3.2"
+    "electron-updater": "^6.8.3",
+    "jszip": "^3.10.1",
+    "pdfjs-dist": "^4.0.379"
   },
   "devDependencies": {
-    "electron": "^40.7.0"
+    "electron": "^41.5.0",
+    "electron-builder": "^26.8.1",
+    "png-to-ico": "^3.0.1"
+  },
+  "build": {
+    "appId": "com.scientist.studio",
+    "productName": "Studio by Scientist",
+    "asarUnpack": [
+      "node_modules/pdfjs-dist/**"
+    ],
+    "extraResources": [
+      {
+        "from": ".env",
+        "to": ".env"
+      }
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "mnotoma20",
+      "repo": "Studio-by-Scientist-"
+    },
+    "mac": {
+      "icon": "assets/logo.icns",
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ]
+    },
+    "win": {
+      "icon": "assets/logo.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "linux": {
+      "icon": "assets/logo.png",
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
   }
 }

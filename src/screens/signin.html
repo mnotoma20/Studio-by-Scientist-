@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Sign In - Studio by Scientist</title>
+  <link rel="icon" type="image/png" href="../../assets/logo.png">
   <style>
     * {
       margin: 0;
@@ -312,13 +313,30 @@
     </form>
 
     <div class="auth-switch">
-      Don't have an account? 
+      Don't have an account?
       <a class="auth-link" onclick="goToSignUp()">Sign Up</a>
+    </div>
+
+    <div style="text-align: center; margin-top: 20px; font-size: 12px; color: rgba(255,255,255,0.4); line-height: 1.8;">
+      By signing in you agree to our
+      <a onclick="openLink('terms')" style="color: rgba(167,139,250,0.7); cursor: pointer; text-decoration: underline;">Terms of Service</a>
+      and
+      <a onclick="openLink('privacy')" style="color: rgba(167,139,250,0.7); cursor: pointer; text-decoration: underline;">Privacy Policy</a>
     </div>
   </div>
 
   <script>
   const { ipcRenderer } = require('electron');
+
+  function openLink(type) {
+    const { shell } = require('electron');
+    const path = require('path');
+    if (type === 'terms') {
+      shell.openPath(path.join(__dirname, 'legal', 'terms-of-service.md'));
+    } else {
+      shell.openPath(path.join(__dirname, 'legal', 'privacy-policy.md'));
+    }
+  }
 
   const form = document.getElementById('signinForm');
   const submitBtn = document.getElementById('submitBtn');
