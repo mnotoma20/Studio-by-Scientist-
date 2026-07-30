@@ -30,7 +30,7 @@ function YoutubeIcon() {
 
 export default function Footer() {
   return (
-    <footer className="px-6 py-16 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)', background: '#050508' }}>
+    <footer className="px-6 py-16 border-t" style={{ borderColor: 'rgba(255,255,255,0.05)', background: 'rgba(5,5,8,0.88)' }}>
       <div className="max-w-6xl mx-auto">
         <div className="flex flex-col md:flex-row items-center md:items-start justify-between gap-10 mb-12">
 
@@ -62,8 +62,12 @@ export default function Footer() {
 
           {/* Social */}
           <div className="flex items-center gap-4">
-            {[InstagramIcon, TwitterIcon, YoutubeIcon].map((Icon, i) => (
-              <a key={i} href="#"
+            {[
+              { Icon: InstagramIcon, href: 'https://instagram.com/studiobyscientist' },
+              { Icon: TwitterIcon, href: '#' },
+              { Icon: YoutubeIcon, href: '#' },
+            ].map(({ Icon, href }, i) => (
+              <a key={i} href={href} target={href !== '#' ? '_blank' : undefined} rel={href !== '#' ? 'noopener noreferrer' : undefined}
                 className="w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 hover:bg-white/10 hover:-translate-y-0.5"
                 style={{ background: 'rgba(255,255,255,0.05)', color: '#6b7280' }}>
                 <Icon />

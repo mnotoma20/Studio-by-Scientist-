@@ -36,7 +36,7 @@ export default function Testimonials() {
 
   return (
     <section ref={ref} className="py-32 px-6 relative noise-bg overflow-hidden"
-      style={{ background: 'linear-gradient(180deg, #050508 0%, #0a0a14 50%, #050508 100%)' }}>
+      style={{ background: 'linear-gradient(180deg, rgba(5,5,8,0.82) 0%, rgba(10,10,20,0.55) 50%, rgba(5,5,8,0.82) 100%)' }}>
 
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-0 right-0 h-px"

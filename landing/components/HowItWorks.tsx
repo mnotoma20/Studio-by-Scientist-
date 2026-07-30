@@ -34,7 +34,7 @@ export default function HowItWorks() {
 
   return (
     <section id="how-it-works" ref={ref} className="py-32 px-6 relative overflow-hidden"
-      style={{ background: 'linear-gradient(180deg, #050508 0%, #080810 50%, #050508 100%)' }}>
+      style={{ background: 'linear-gradient(180deg, rgba(5,5,8,0.82) 0%, rgba(8,8,16,0.55) 50%, rgba(5,5,8,0.82) 100%)' }}>
 
       <div className="max-w-6xl mx-auto relative z-10">
         {/* Heading */}

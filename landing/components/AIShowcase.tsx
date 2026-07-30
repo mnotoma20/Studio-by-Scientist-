@@ -10,7 +10,7 @@ export default function AIShowcase() {
 
   return (
     <section ref={ref} className="py-32 px-6 relative overflow-hidden"
-      style={{ background: 'linear-gradient(180deg, #050508 0%, #07070f 50%, #050508 100%)' }}>
+      style={{ background: 'linear-gradient(180deg, rgba(5,5,8,0.82) 0%, rgba(7,7,15,0.55) 50%, rgba(5,5,8,0.82) 100%)' }}>
 
       {/* Diagonal accent line */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">

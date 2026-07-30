@@ -1,3 +1,4 @@
+import dynamic from 'next/dynamic'
 import Nav from '@/components/Nav'
 import Hero from '@/components/Hero'
 import ProductShowcase from '@/components/ProductShowcase'
@@ -9,9 +10,12 @@ import Testimonials from '@/components/Testimonials'
 import FinalCTA from '@/components/FinalCTA'
 import Footer from '@/components/Footer'
 
+const ThreeBackground = dynamic(() => import('@/components/ThreeBackground'), { ssr: false })
+
 export default function Home() {
   return (
     <main className="relative">
+      <ThreeBackground />
       <Nav />
       <Hero />
       <ProductShowcase />

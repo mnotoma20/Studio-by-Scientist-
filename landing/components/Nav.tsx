@@ -58,9 +58,6 @@ export default function Nav() {
 
           {/* Right */}
           <div className="hidden md:flex items-center gap-4">
-            <a href="#" className="text-sm text-[#9ca3af] hover:text-white transition-colors duration-200 font-medium">
-              Sign In
-            </a>
             <a href="#download"
               className="btn-gradient relative flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white overflow-hidden">
               <span className="relative z-10 flex items-center gap-2">

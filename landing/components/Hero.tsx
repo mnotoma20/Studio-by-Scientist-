@@ -3,9 +3,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { ChevronDown, Sparkles } from 'lucide-react'
-import dynamic from 'next/dynamic'
-
-const ThreeBackground = dynamic(() => import('./ThreeBackground'), { ssr: false })
 
 const TYPEWRITER_WORDS = ['Powered by AI', 'Effortlessly', 'In Real Time', 'Automatically']
 
@@ -44,10 +41,7 @@ export default function Hero() {
 
   return (
     <section className="relative w-full min-h-screen flex flex-col items-center justify-center overflow-hidden">
-      {/* Animated background */}
-      <ThreeBackground />
-
-      {/* Radial glow centers */}
+      {/* Radial glow centers — the living particle field itself is now global (see page.tsx) */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full"
           style={{ background: 'radial-gradient(circle, rgba(167,139,250,0.12) 0%, transparent 70%)' }} />
@@ -56,7 +50,7 @@ export default function Hero() {
       </div>
 
       {/* Main content */}
-      <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-5xl mx-auto">
+      <div className="relative z-10 flex flex-col items-center text-center px-6 max-w-5xl mx-auto w-full min-w-0">
 
         {/* Badge */}
         <motion.div
