@@ -36,6 +36,21 @@
     "asarUnpack": [
       "node_modules/pdfjs-dist/**"
     ],
+    "files": [
+      "**/*",
+      "!.env",
+      "!.env.*",
+      "!admin/**",
+      "!landing/**",
+      "!mini-apps/**",
+      "!legal/**",
+      "!themes/**",
+      "!.git/**",
+      "!.gitignore",
+      "!dist/**",
+      "!*.md",
+      "!package-lock.json"
+    ],
     "publish": {
       "provider": "github",
       "owner": "mnotoma20",
