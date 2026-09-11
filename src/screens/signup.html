@@ -20,6 +20,27 @@
       align-items: center;
       justify-content: center;
       overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Standard-gamut screens (most Windows laptops) render the same sRGB hex noticeably
+       flatter than a wide-gamut panel. Nearly every Mac matches `color-gamut: p3` and
+       skips this block, so Mac is unchanged; other screens get a saturation nudge plus
+       ambient glow so the purple/pink still reads rich. */
+    @media not all and (color-gamut: p3) {
+      .logo-text,
+      .btn-primary { filter: saturate(1.18) contrast(1.03); }
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 0;
+        background:
+          radial-gradient(52vw 52vh at 18% 12%, rgba(167, 139, 250, 0.30), transparent 62%),
+          radial-gradient(46vw 46vh at 86% 88%, rgba(236, 72, 153, 0.28), transparent 62%);
+      }
+      .auth-container { position: relative; z-index: 1; }
     }
 
     .auth-container {

@@ -91,6 +91,67 @@ async function checkAuth() {
   return false;
 }
 
+// Desktop apps have no inbound endpoint for Stripe's webhook to push into, so plan changes
+// are picked up on refresh-on-signal (app launch, window focus, this handler) rather than
+// pushed live. Re-runs the same church lookup checkAuth() does, then re-sends 'user-data' so
+// the renderer's window._userData.church.plan updates without a full app restart.
+ipcMain.handle('refresh-church', async () => {
+  if (!auth || !currentUser) return { success: false, error: 'Not signed in' };
+  try {
+    const result = await auth.getCurrentUser();
+    if (result.success && result.church) {
+      currentChurch = result.church;
+      if (controlWindow) {
+        controlWindow.webContents.send('user-data', { user: currentUser, church: currentChurch });
+      }
+      return { success: true, church: currentChurch };
+    }
+    return { success: false, error: result.error || 'Could not refresh church' };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// Opens the system browser to a token-gated checkout redirect hosted in admin/ — card entry
+// never touches this app. The token is a signed churchId+expiry, verified server-side.
+// Shared by open-upgrade-flow and open-billing-portal — signs a short-lived churchId+expiry
+// token the admin/ routes verify, since churches never get a password on that app.
+function signChurchToken(churchId) {
+  const crypto = require('crypto');
+  const secret = process.env.CHECKOUT_TOKEN_SECRET;
+  if (!secret) throw new Error('CHECKOUT_TOKEN_SECRET not set in .env file');
+  const expiry = Date.now() + 10 * 60 * 1000; // 10 minute link validity
+  const signature = crypto.createHmac('sha256', secret).update(`${churchId}:${expiry}`).digest('hex');
+  return { expiry, signature };
+}
+function adminBaseUrl() {
+  return process.env.ADMIN_BASE_URL || 'https://admin-neon-three-38.vercel.app';
+}
+
+ipcMain.handle('open-upgrade-flow', async (_event, { plan, interval }) => {
+  if (!currentChurch?.id) return { success: false, error: 'Not signed in' };
+  try {
+    const { expiry, signature } = signChurchToken(currentChurch.id);
+    const url = `${adminBaseUrl()}/api/stripe/checkout?church=${encodeURIComponent(currentChurch.id)}&expiry=${expiry}&token=${signature}&plan=${encodeURIComponent(plan)}&interval=${encodeURIComponent(interval)}`;
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('open-billing-portal', async () => {
+  if (!currentChurch?.id) return { success: false, error: 'Not signed in' };
+  try {
+    const { expiry, signature } = signChurchToken(currentChurch.id);
+    const url = `${adminBaseUrl()}/api/stripe/portal?church=${encodeURIComponent(currentChurch.id)}&expiry=${expiry}&token=${signature}`;
+    await shell.openExternal(url);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
 // Create auth window (sign in or sign up)
 function createAuthWindow(page = 'signin') {
   console.log(`🔐 Creating ${page} window...`);
@@ -217,6 +278,27 @@ function createAppWindows() {
   });
 
   createDisplayWindows();
+
+  // Refresh plan on window focus (upgrade in browser → alt-tab back → already unlocked),
+  // debounced so rapid focus events don't spam the DB. Safety-net interval covers always-on
+  // control-room setups that never lose window focus.
+  let lastChurchRefresh = 0;
+  const refreshChurchIfStale = async () => {
+    if (Date.now() - lastChurchRefresh < 60 * 1000) return;
+    lastChurchRefresh = Date.now();
+    if (!auth || !currentUser) return;
+    try {
+      const result = await auth.getCurrentUser();
+      if (result.success && result.church) {
+        currentChurch = result.church;
+        if (controlWindow) controlWindow.webContents.send('user-data', { user: currentUser, church: currentChurch });
+      }
+    } catch (err) {
+      console.error('Background church refresh failed:', err.message);
+    }
+  };
+  controlWindow.on('focus', refreshChurchIfStale);
+  setInterval(refreshChurchIfStale, 10 * 60 * 1000);
 
   controlWindow.on('closed', () => {
     closeAllDisplayWindows();
@@ -858,6 +940,98 @@ ipcMain.handle('delete-background', async (event, bgId) => {
   }
 });
 
+// ─── SLIDE DECKS HANDLERS ───────────────────────────────────────────────────
+// Library list — full rows (matches the "songs"/select('*') convention) so cards can
+// render a real thumbnail of each deck's first page, not just a placeholder icon.
+ipcMain.handle('get-slide-decks', async () => {
+  try {
+    const { data, error } = await supabase
+      .from('slide_decks')
+      .select('*')
+      .order('updated_at', { ascending: false });
+    if (error) throw error;
+    return { success: true, decks: data || [] };
+  } catch (error) {
+    console.error('Error getting slide decks:', error);
+    return { success: false, error: error.message, decks: [] };
+  }
+});
+
+// Full row (including pages) — used to open the editor or resolve a deck for Schedule
+ipcMain.handle('get-slide-deck', async (event, deckId) => {
+  try {
+    const { data, error } = await supabase
+      .from('slide_decks')
+      .select('*')
+      .eq('id', deckId)
+      .single();
+    if (error) throw error;
+    return { success: true, deck: data };
+  } catch (error) {
+    console.error('Error getting slide deck:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('save-slide-deck', async (event, deck) => {
+  try {
+    if (deck.id) {
+      const { data, error } = await supabase
+        .from('slide_decks')
+        .update({
+          title: deck.title,
+          pages: deck.pages,
+          page_w: deck.page_w,
+          page_h: deck.page_h,
+          theme: deck.theme || 'modern',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', deck.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return { success: true, deck: data };
+    } else {
+      const gate = isFeatureAllowed('slideDeckCreate');
+      if (!gate.allowed) return gate;
+      const { data, error } = await supabase
+        .from('slide_decks')
+        .insert([{
+          title: deck.title,
+          pages: deck.pages,
+          page_w: deck.page_w || 1920,
+          page_h: deck.page_h || 1080,
+          theme: deck.theme || 'modern'
+        }])
+        .select()
+        .single();
+      if (error) throw error;
+      return { success: true, deck: data };
+    }
+  } catch (error) {
+    console.error('Error saving slide deck:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('delete-slide-deck', async (event, deckId) => {
+  try {
+    const { error } = await supabase.from('slide_decks').delete().eq('id', deckId);
+    if (error) throw error;
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting slide deck:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Live-display a single deck page on the projector (fire-and-forget, same convention as display-pptx-slide)
+ipcMain.on('display-slide-deck-page', (_event, page) => {
+  console.log('🎬 Displaying slide deck page:', page?.id);
+  broadcastToDisplays('show-slide-deck-page', page);
+  broadcastToDisplays('item-went-live', { startedAt: Date.now() }, 'confidence');
+});
+
 ipcMain.on('start-countdown', (event, seconds) => {
   // Only show the schedule countdown on screens that have the timer enabled
   for (const { window: win, config } of displayWindows) {
@@ -903,6 +1077,61 @@ ipcMain.on('set-song-title-visibility', (_event, visible) => {
 });
 
 // ============================================
+// PLAN GATING (Free vs Pro/Studio)
+// ============================================
+// Main process is the real enforcement boundary — this app runs with nodeIntegration:true
+// and no contextIsolation, so any renderer-side check alone would be trivially bypassable
+// via devtools. Renderer-side checks elsewhere are UX polish only, never the actual gate.
+const FEATURE_PLAN = {
+  pptxImport: 'paid',
+  slideDeckCreate: 'paid',
+  liveModeAI: 'paid',
+  sermonNotesAI: 'paid',
+  weeklyTeachingAI: 'paid',
+};
+
+// Owner / admin override — the church owner gets every paid feature regardless of plan.
+// Keyed off the churches.is_admin flag, with an email allowlist fallback so it works even
+// before that flag is set in the database.
+const OWNER_EMAILS = ['oghenemine2007@outlook.com'];
+function isOwner() {
+  if (currentChurch && currentChurch.is_admin === true) return true;
+  const email = (currentUser?.email || '').toLowerCase();
+  return OWNER_EMAILS.includes(email);
+}
+
+function isFeatureAllowed(featureKey) {
+  if (FEATURE_PLAN[featureKey] !== 'paid') return { allowed: true };
+  if (isOwner()) return { allowed: true };
+  const plan = (currentChurch?.plan || 'free').toLowerCase();
+  if (plan === 'pro' || plan === 'studio') return { allowed: true };
+  return { success: false, allowed: false, error: 'This feature requires a Pro or Studio plan.', upgradeRequired: true, feature: featureKey };
+}
+
+async function checkScheduleQuota() {
+  if (isOwner()) return { allowed: true };
+  if ((currentChurch?.plan || 'free').toLowerCase() !== 'free') return { allowed: true };
+  try {
+    const start = new Date();
+    start.setDate(1);
+    start.setHours(0, 0, 0, 0);
+    const { count, error } = await supabase
+      .from('schedules')
+      .select('id', { count: 'exact', head: true })
+      .eq('church_id', currentChurch?.id || null)
+      .gte('created_at', start.toISOString());
+    if (error) throw error;
+    if ((count || 0) >= 2) {
+      return { success: false, allowed: false, error: 'Free plan is limited to 2 schedules per month. Upgrade to Pro for unlimited schedules.', upgradeRequired: true, feature: 'scheduleCreate' };
+    }
+    return { allowed: true };
+  } catch (err) {
+    console.error('Schedule quota check failed, allowing (fail-open):', err.message);
+    return { allowed: true };
+  }
+}
+
+// ============================================
 // SCHEDULE HANDLERS
 // ============================================
 
@@ -911,6 +1140,7 @@ ipcMain.handle('get-schedules', async () => {
     const { data, error } = await supabase
       .from('schedules')
       .select('*')
+      .eq('church_id', currentChurch?.id || null)
       .order('service_date', { ascending: false });
     if (error) throw error;
     return { success: true, schedules: data || [] };
@@ -921,9 +1151,11 @@ ipcMain.handle('get-schedules', async () => {
 
 ipcMain.handle('create-schedule', async (event, schedule) => {
   try {
+    const gate = await checkScheduleQuota();
+    if (!gate.allowed) return gate;
     const { data, error } = await supabase
       .from('schedules')
-      .insert([{ title: schedule.title, service_date: schedule.service_date, service_type: schedule.service_type }])
+      .insert([{ title: schedule.title, service_date: schedule.service_date, service_type: schedule.service_type, church_id: currentChurch?.id || null }])
       .select()
       .single();
     if (error) throw error;
@@ -1032,6 +1264,8 @@ ipcMain.handle('reorder-schedule-items', async (event, items) => {
 
 ipcMain.handle('generate-sermon-notes', async (_event, data) => {
   try {
+    const gate = isFeatureAllowed('sermonNotesAI');
+    if (!gate.allowed) return gate;
     const apiKey = process.env.ANTHROPIC_API_KEY;
     if (!apiKey) return { success: false, error: 'ANTHROPIC_API_KEY not set in .env file' };
 
@@ -1091,6 +1325,8 @@ Generate 3-5 points. Make it practical, scripture-grounded, and suitable for a m
 
 ipcMain.handle('transcribe-audio', async (_event, audioBuffer) => {
   try {
+    const gate = isFeatureAllowed('liveModeAI');
+    if (!gate.allowed) return gate;
     const fs = require('fs');
     const os = require('os');
     const apiKey = process.env.OPENAI_API_KEY;
@@ -1105,6 +1341,8 @@ ipcMain.handle('transcribe-audio', async (_event, audioBuffer) => {
     formData.append('file', blob, 'audio.webm');
     formData.append('model', 'whisper-1');
     formData.append('language', 'en');
+    formData.append('response_format', 'verbose_json');
+    formData.append('timestamp_granularities[]', 'word');
     formData.append('prompt', 'Genesis Exodus Leviticus Numbers Deuteronomy Joshua Judges Ruth Samuel Kings Chronicles Ezra Nehemiah Esther Job Psalms Proverbs Ecclesiastes Isaiah Jeremiah Lamentations Ezekiel Daniel Hosea Joel Amos Obadiah Jonah Micah Nahum Habakkuk Zephaniah Haggai Zechariah Malachi Matthew Mark Luke John Acts Romans Corinthians Galatians Ephesians Philippians Colossians Thessalonians Timothy Titus Philemon Hebrews James Peter John Jude Revelation chapter verse');
 
     const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
@@ -1126,8 +1364,12 @@ ipcMain.handle('transcribe-audio', async (_event, audioBuffer) => {
     ];
     let text = result.text;
     for (const h of hallucinations) text = text.replace(h, '').trim();
-    if (!text) return { success: true, text: '' };
-    return { success: true, text };
+    if (!text) return { success: true, text: '', words: [] };
+    // Word-level timestamps (seconds, relative to chunk start) for the operator read-along
+    const words = Array.isArray(result.words)
+      ? result.words.map(w => ({ word: w.word, start: w.start, end: w.end }))
+      : [];
+    return { success: true, text, words };
   } catch (error) {
     console.error('Whisper transcription error:', error);
     return { success: false, error: error.message };
@@ -1981,6 +2223,8 @@ async function renderPdfToImages(pdfPath, scale = 2.0) {
 }
 
 ipcMain.handle('import-pptx', async () => {
+  const gate = isFeatureAllowed('pptxImport');
+  if (!gate.allowed) return gate;
   const result = await dialog.showOpenDialog(controlWindow, {
     title: 'Import PowerPoint File',
     filters: [{ name: 'PowerPoint', extensions: ['pptx'] }],
@@ -2244,6 +2488,8 @@ ipcMain.handle('read-teaching-doc', async () => {
 
 // ─── Extract Weekly Sermon from Teaching Doc via GPT ───────────────────────
 ipcMain.handle('extract-weekly-sermon', async (_event, { docText, todayDate }) => {
+  const gate = isFeatureAllowed('weeklyTeachingAI');
+  if (!gate.allowed) return gate;
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return { success: false, error: 'OPENAI_API_KEY not set' };
 
@@ -2290,10 +2536,10 @@ Rules:
           },
           {
             role: 'user',
-            content: `Today is ${todayDate}.\n\nDocument content:\n${docText.slice(0, 10000)}`
+            content: `Today is ${todayDate}.\n\nDocument content:\n${docText.slice(0, 60000)}`
           }
         ],
-        max_tokens: 2000,
+        max_tokens: 3000,
         temperature: 0.1
       })
     });

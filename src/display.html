@@ -5,6 +5,21 @@
   <title>Studio - Display</title>
   <link rel="icon" type="image/png" href="../assets/logo.png">
   <style>
+    /* Bundled deck-template fonts — must match control.html so the projector
+       renders template text with the same faces the editor previews. */
+    @font-face {
+      font-family: 'Cormorant Garamond';
+      src: url('../assets/fonts/CormorantGaramond-Variable.ttf') format('truetype');
+      font-weight: 300 700;
+      font-display: swap;
+    }
+    @font-face {
+      font-family: 'Inter';
+      src: url('../assets/fonts/Inter-Variable.ttf') format('truetype');
+      font-weight: 100 900;
+      font-display: swap;
+    }
+
     * {
       margin: 0;
       padding: 0;
@@ -41,6 +56,19 @@
         opacity: 1;
         transform: translateY(0);
       }
+    }
+
+    @keyframes deckFade {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+    @keyframes deckSlideLeft {
+      from { opacity: 0; transform: translateX(60px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes deckSlideUp {
+      from { opacity: 0; transform: translateY(60px); }
+      to   { opacity: 1; transform: translateY(0); }
     }
 
     @keyframes slideIn {
@@ -217,6 +245,7 @@
 
   <!-- PPTX slide overlay — sits above everything, avoids clobbering verse/welcome DOM -->
   <div id="pptxOverlay" style="display:none; position:fixed; inset:0; z-index:5; overflow:hidden;"></div>
+  <div id="slideDeckOverlay" style="display:none; position:fixed; inset:0; z-index:5; overflow:hidden;"></div>
 
   <!-- Lower Third overlay — TV-style broadcast bar, sits above all content -->
   <div id="lowerThird" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:30; pointer-events:none;">
@@ -275,6 +304,21 @@
 
   <script>
   const { ipcRenderer } = require('electron');
+
+  // Strips scripts/event-handlers from operator-authored rich text (bold/underline/font) before rendering
+  function sanitizeRichHtml(html) {
+    const div = document.createElement('div');
+    div.innerHTML = html || '';
+    div.querySelectorAll('script, style, iframe, object, embed').forEach(el => el.remove());
+    div.querySelectorAll('*').forEach(el => {
+      [...el.attributes].forEach(attr => {
+        if (/^on/i.test(attr.name) || (attr.name === 'href' && /^\s*javascript:/i.test(attr.value))) {
+          el.removeAttribute(attr.name);
+        }
+      });
+    });
+    return div.innerHTML;
+  }
 
   // Read profile from URL query params (set by main.js createDisplayWindows)
   const urlParams = new URLSearchParams(window.location.search);
@@ -340,13 +384,24 @@
 
     if (!currentDisplayTheme) document.body.style.backgroundImage = '';
 
-    // Update content
-    verseRef.textContent = verse.reference;
+    // Update content — supports either a single verse or a `verses` array (multi-verse display)
     verseRef.style.display = ''; // verses always show the reference
-    const cleanText = verse.text.replace(/[\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim();
-    verseText.textContent = cleanText;
-    verseTrans.textContent = `(${verse.translation})`;
-    verseText.dataset.wordCount = cleanText.split(/\s+/).length;
+    if (Array.isArray(verse.verses) && verse.verses.length) {
+      const list = verse.verses;
+      verseRef.textContent = list.map(v => v.reference).join('  •  ');
+      const cleanTexts = list.map(v => v.text.replace(/[\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim());
+      verseText.innerHTML = list.map((v, i) =>
+        `<div style="font-size:0.55em;opacity:0.75;font-weight:700;margin-bottom:4px;">${v.reference}</div><div>${cleanTexts[i]}</div>`
+      ).join('<div style="height:0.6em;"></div>');
+      verseTrans.textContent = `(${verse.translation})`;
+      verseText.dataset.wordCount = cleanTexts.join(' ').split(/\s+/).length;
+    } else {
+      verseRef.textContent = verse.reference;
+      const cleanText = verse.text.replace(/[\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim();
+      verseText.textContent = cleanText;
+      verseTrans.textContent = `(${verse.translation})`;
+      verseText.dataset.wordCount = cleanText.split(/\s+/).length;
+    }
     delete verseText.dataset.userSize;
 
   if (currentDisplayTheme) {
@@ -381,7 +436,11 @@ ipcRenderer.on('show-lyrics', (event, lyricsData) => {
   verseRef.textContent = displayTitle;
   // Honor the show-song-title toggle (persistent flag set from control panel)
   verseRef.style.display = showSongTitle ? '' : 'none';
-  verseText.textContent = lyricsData.lyrics || 'No lyrics available';
+  if (lyricsData.richText) {
+    verseText.innerHTML = sanitizeRichHtml(lyricsData.lyrics) || 'No lyrics available';
+  } else {
+    verseText.textContent = lyricsData.lyrics || 'No lyrics available';
+  }
   verseTrans.textContent = '';
   verseText.dataset.wordCount = '0'; // lyrics: skip smart sizing
   
@@ -415,7 +474,11 @@ ipcRenderer.on('show-prayer-combined', (event, data) => {
   if (!currentDisplayTheme) document.body.style.backgroundImage = '';
 
   document.getElementById('prayerTitle').textContent = data.title || 'Prayer';
-  document.getElementById('prayerText').textContent = data.text || '';
+  if (data.richText) {
+    document.getElementById('prayerText').innerHTML = sanitizeRichHtml(data.text);
+  } else {
+    document.getElementById('prayerText').textContent = data.text || '';
+  }
 
   if (data.verse) {
     document.getElementById('prayerVerseRef').textContent = data.verse.reference;
@@ -617,6 +680,62 @@ function applyThemeColors(themeData) {
     overlay.style.display = 'block';
   });
 
+  // Slide Deck pages — a page's `elements[]` (text/shape/image/scripture), all % of page_w/page_h,
+  // rendered the same way PPTX slides are above, plus rotation + a per-page transition animation.
+  const DECK_TRANSITION_KEYFRAMES = { fade: 'deckFade', 'slide-left': 'deckSlideLeft', 'slide-up': 'deckSlideUp' };
+  function renderDeckElement(el) {
+    const fsPx = (el.fontSize || 32) * (screen.height / 1080);
+    if (el.type === 'text') {
+      const justify = el.align === 'left' ? 'flex-start' : el.align === 'right' ? 'flex-end' : 'center';
+      return `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:${justify};text-align:${el.align||'center'};font-family:${el.fontFamily||'Arial,sans-serif'};font-size:${fsPx}px;color:${el.color||'#fff'};font-weight:${el.bold?'800':'400'};font-style:${el.italic?'italic':'normal'};text-decoration:${el.underline?'underline':'none'};overflow:hidden;line-height:1.2;text-shadow:0 2px 8px rgba(0,0,0,0.4);">${el.html||''}</div>`;
+    }
+    if (el.type === 'scripture') {
+      return `<div style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:${el.align||'center'};font-family:${el.fontFamily||'Georgia,serif'};overflow:hidden;">
+        <div style="font-size:${fsPx}px;color:${el.color||'#fff'};line-height:1.3;text-shadow:0 2px 8px rgba(0,0,0,0.5);">${el.text||''}</div>
+        <div style="font-size:${fsPx*0.4}px;color:${el.refColor||'#FFD700'};font-weight:700;margin-top:8px;">${el.reference||''}</div>
+      </div>`;
+    }
+    if (el.type === 'image') {
+      return `<img src="${el.src}" style="width:100%;height:100%;object-fit:${el.objectFit||'contain'};">`;
+    }
+    if (el.type === 'shape') {
+      if (el.shapeType === 'line') {
+        return `<svg width="100%" height="100%" style="overflow:visible;display:block;"><line x1="0" y1="0" x2="100%" y2="100%" stroke="${el.strokeColor||'#fff'}" stroke-width="${el.strokeWidth||2}" opacity="${el.strokeOpacity ?? 1}"/></svg>`;
+      }
+      const radius = el.shapeType === 'ellipse' ? '50%' : '0';
+      const border = el.strokeWidth ? `${el.strokeWidth}px solid ${el.strokeColor||'#fff'}` : 'none';
+      return `<div style="width:100%;height:100%;border-radius:${radius};background:${el.fillColor||'transparent'};opacity:${el.fillOpacity ?? 1};border:${border};box-sizing:border-box;"></div>`;
+    }
+    return '';
+  }
+
+  ipcRenderer.on('show-slide-deck-page', (event, page) => {
+    const overlay = document.getElementById('slideDeckOverlay');
+    const bg = page.background || {};
+
+    if (bg.type === 'image' && bg.imageUrl) {
+      overlay.style.background = `url('${bg.imageUrl}') center/cover no-repeat`;
+    } else {
+      overlay.style.background = bg.color || '#1a1a2e';
+    }
+
+    let html = '';
+    if (bg.overlayOpacity > 0) {
+      html += `<div style="position:absolute;inset:0;background:${bg.overlayColor||'#000'};opacity:${bg.overlayOpacity};"></div>`;
+    }
+    [...(page.elements||[])].sort((a,b)=>(a.zIndex||0)-(b.zIndex||0)).forEach(el => {
+      html += `<div style="position:absolute;left:${el.x}%;top:${el.y}%;width:${el.w}%;height:${el.h}%;transform:rotate(${el.rotation||0}deg);z-index:${el.zIndex||0};">${renderDeckElement(el)}</div>`;
+    });
+    overlay.innerHTML = html;
+    overlay.style.display = 'block';
+
+    // Restart the transition animation on every trigger, even repeated same-page ones
+    const keyframe = DECK_TRANSITION_KEYFRAMES[page.transition] || 'deckFade';
+    const duration = keyframe === 'deckFade' ? '0.6s ease-in-out' : '0.5s ease-out';
+    overlay.style.animation = 'none';
+    setTimeout(() => { overlay.style.animation = `${keyframe} ${duration}`; }, 10);
+  });
+
   ipcRenderer.on('clear-display', () => {
   console.log('🧹 Clearing display');
   welcomeScreen.style.display = 'flex';
@@ -628,6 +747,8 @@ function applyThemeColors(themeData) {
   // Clear all overlays
   const overlay = document.getElementById('pptxOverlay');
   if (overlay) { overlay.style.display = 'none'; overlay.innerHTML = ''; }
+  const deckOv = document.getElementById('slideDeckOverlay');
+  if (deckOv) { deckOv.style.display = 'none'; deckOv.innerHTML = ''; deckOv.style.animation = 'none'; }
   const bgOv = document.getElementById('bgImageOverlay');
   if (bgOv) { bgOv.style.display = 'none'; document.getElementById('bgImageEl').src = ''; }
 

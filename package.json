@@ -1,11 +1,12 @@
 {
   "name": "studio-by-scientist",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI-Powered Church Presentation Software",
   "main": "src/main.js",
   "scripts": {
     "start": "env -u ELECTRON_RUN_AS_NODE electron .",
-    "build-win": "electron-builder --win"
+    "build-win": "electron-builder --win --publish never",
+    "build-mac": "electron-builder --mac --publish never"
   },
   "keywords": [
     "church",
