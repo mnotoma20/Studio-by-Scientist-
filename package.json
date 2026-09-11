@@ -36,12 +36,6 @@
     "asarUnpack": [
       "node_modules/pdfjs-dist/**"
     ],
-    "extraResources": [
-      {
-        "from": ".env",
-        "to": ".env"
-      }
-    ],
     "publish": {
       "provider": "github",
       "owner": "mnotoma20",

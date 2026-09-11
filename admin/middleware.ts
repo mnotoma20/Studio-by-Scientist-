@@ -2,6 +2,18 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 
 export async function middleware(request: NextRequest) {
+  // Stripe checkout/webhook/portal routes and their return pages authenticate churches via
+  // their own signed-token/signature scheme, not the admin-staff session cookie this
+  // middleware otherwise enforces — churches never get a password here, so they'd never pass
+  // the session check below and would get bounced to the admin login screen instead.
+  if (
+    request.nextUrl.pathname.startsWith('/api/stripe/') ||
+    request.nextUrl.pathname.startsWith('/api/ai/') ||
+    request.nextUrl.pathname.startsWith('/billing/')
+  ) {
+    return NextResponse.next()
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,

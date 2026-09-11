@@ -3,12 +3,11 @@ const { app, BrowserWindow, ipcMain, screen, shell, dialog } = require('electron
 const fs = require('fs');
 const os = require('os');
 const { execFile, execSync } = require('child_process');
-// In packaged app, .env lives in process.resourcesPath; in dev it's in the project root
-require('dotenv').config({
-  path: app.isPackaged
-    ? path.join(process.resourcesPath, '.env')
-    : path.join(__dirname, '..', '.env')
-});
+// Dev-only convenience (e.g. ADMIN_BASE_URL override) — no API keys live here anymore, so
+// .env is never bundled into the packaged app. dotenv silently no-ops if the file is absent.
+if (!app.isPackaged) {
+  require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+}
 const Store = require('electron-store');
 const store = new Store();
 let autoUpdater;
@@ -112,29 +111,54 @@ ipcMain.handle('refresh-church', async () => {
   }
 });
 
-// Opens the system browser to a token-gated checkout redirect hosted in admin/ — card entry
-// never touches this app. The token is a signed churchId+expiry, verified server-side.
-// Shared by open-upgrade-flow and open-billing-portal — signs a short-lived churchId+expiry
-// token the admin/ routes verify, since churches never get a password on that app.
-function signChurchToken(churchId) {
-  const crypto = require('crypto');
-  const secret = process.env.CHECKOUT_TOKEN_SECRET;
-  if (!secret) throw new Error('CHECKOUT_TOKEN_SECRET not set in .env file');
-  const expiry = Date.now() + 10 * 60 * 1000; // 10 minute link validity
-  const signature = crypto.createHmac('sha256', secret).update(`${churchId}:${expiry}`).digest('hex');
-  return { expiry, signature };
-}
 function adminBaseUrl() {
   return process.env.ADMIN_BASE_URL || 'https://admin-neon-three-38.vercel.app';
+}
+
+// The Supabase access token for the signed-in user — sent to the admin backend as a bearer
+// token so it can authenticate this app without any shared secret shipping in the bundle.
+async function getAccessToken() {
+  try {
+    const session = auth && (await auth.getSession());
+    return session?.access_token || null;
+  } catch (err) {
+    console.error('getAccessToken failed:', err.message);
+    return null;
+  }
+}
+
+// POST JSON to an admin backend route with the user's bearer token. Returns the parsed body
+// plus `_status`; callers decide what a non-2xx means for them.
+async function adminPost(routePath, body) {
+  const token = await getAccessToken();
+  if (!token) return { _status: 401, error: 'Not signed in' };
+  const res = await fetch(`${adminBaseUrl()}${routePath}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(body || {}),
+  });
+  let data = {};
+  try { data = await res.json(); } catch { /* non-JSON error body */ }
+  return { _status: res.status, ...data };
+}
+
+// Backend AI proxies — the OpenAI / Anthropic keys live only on the admin server now.
+async function aiOpenAI(payload) {
+  return adminPost('/api/ai/openai', payload);
+}
+async function aiAnthropic(payload) {
+  return adminPost('/api/ai/anthropic', payload);
 }
 
 ipcMain.handle('open-upgrade-flow', async (_event, { plan, interval }) => {
   if (!currentChurch?.id) return { success: false, error: 'Not signed in' };
   try {
-    const { expiry, signature } = signChurchToken(currentChurch.id);
-    const url = `${adminBaseUrl()}/api/stripe/checkout?church=${encodeURIComponent(currentChurch.id)}&expiry=${expiry}&token=${signature}&plan=${encodeURIComponent(plan)}&interval=${encodeURIComponent(interval)}`;
-    await shell.openExternal(url);
-    return { success: true };
+    const r = await adminPost('/api/stripe/checkout', { plan, interval });
+    if (r._status >= 200 && r._status < 300 && r.url) {
+      await shell.openExternal(r.url);
+      return { success: true };
+    }
+    return { success: false, error: r.error || `Checkout failed (${r._status})` };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -143,10 +167,12 @@ ipcMain.handle('open-upgrade-flow', async (_event, { plan, interval }) => {
 ipcMain.handle('open-billing-portal', async () => {
   if (!currentChurch?.id) return { success: false, error: 'Not signed in' };
   try {
-    const { expiry, signature } = signChurchToken(currentChurch.id);
-    const url = `${adminBaseUrl()}/api/stripe/portal?church=${encodeURIComponent(currentChurch.id)}&expiry=${expiry}&token=${signature}`;
-    await shell.openExternal(url);
-    return { success: true };
+    const r = await adminPost('/api/stripe/portal', {});
+    if (r._status >= 200 && r._status < 300 && r.url) {
+      await shell.openExternal(r.url);
+      return { success: true };
+    }
+    return { success: false, error: r.error || `Could not open billing portal (${r._status})` };
   } catch (err) {
     return { success: false, error: err.message };
   }
@@ -1266,8 +1292,6 @@ ipcMain.handle('generate-sermon-notes', async (_event, data) => {
   try {
     const gate = isFeatureAllowed('sermonNotesAI');
     if (!gate.allowed) return gate;
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-    if (!apiKey) return { success: false, error: 'ANTHROPIC_API_KEY not set in .env file' };
 
     const prompt = `You are a sermon preparation assistant for a Christian church. Generate comprehensive sermon notes based on the following input.
 
@@ -1297,21 +1321,15 @@ Return a JSON object with this exact structure (no markdown, just raw JSON):
 
 Generate 3-5 points. Make it practical, scripture-grounded, and suitable for a modern evangelical church service.`;
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-opus-4-5',
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: prompt }]
-      })
+    const result = await aiAnthropic({
+      model: 'claude-opus-4-5',
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: prompt }]
     });
-    const result = await response.json();
-    if (!response.ok) return { success: false, error: result.error?.message || 'Claude API error' };
+    if (result._status !== 200) {
+      if (result.upgradeRequired) return { success: false, error: result.error, upgradeRequired: true };
+      return { success: false, error: result.error?.message || result.error || 'Claude API error' };
+    }
 
     const responseText = result.content[0].text;
     const cleaned = responseText.replace(/```json|```/g, '').trim();
@@ -1327,33 +1345,23 @@ ipcMain.handle('transcribe-audio', async (_event, audioBuffer) => {
   try {
     const gate = isFeatureAllowed('liveModeAI');
     if (!gate.allowed) return gate;
-    const fs = require('fs');
-    const os = require('os');
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) return { success: false, error: 'OPENAI_API_KEY not set in .env file' };
 
-    const tempPath = path.join(os.tmpdir(), `studio-audio-${Date.now()}.webm`);
-    fs.writeFileSync(tempPath, Buffer.from(audioBuffer));
-
-    const formData = new FormData();
-    const fileBytes = fs.readFileSync(tempPath);
-    const blob = new Blob([fileBytes], { type: 'audio/webm' });
-    formData.append('file', blob, 'audio.webm');
-    formData.append('model', 'whisper-1');
-    formData.append('language', 'en');
-    formData.append('response_format', 'verbose_json');
-    formData.append('timestamp_granularities[]', 'word');
-    formData.append('prompt', 'Genesis Exodus Leviticus Numbers Deuteronomy Joshua Judges Ruth Samuel Kings Chronicles Ezra Nehemiah Esther Job Psalms Proverbs Ecclesiastes Isaiah Jeremiah Lamentations Ezekiel Daniel Hosea Joel Amos Obadiah Jonah Micah Nahum Habakkuk Zephaniah Haggai Zechariah Malachi Matthew Mark Luke John Acts Romans Corinthians Galatians Ephesians Philippians Colossians Thessalonians Timothy Titus Philemon Hebrews James Peter John Jude Revelation chapter verse');
-
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}` },
-      body: formData
+    const audioBase64 = Buffer.from(audioBuffer).toString('base64');
+    const result = await aiOpenAI({
+      kind: 'transcribe',
+      audioBase64,
+      mime: 'audio/webm',
+      fields: {
+        language: 'en',
+        response_format: 'verbose_json',
+        'timestamp_granularities[]': 'word',
+        prompt: 'Genesis Exodus Leviticus Numbers Deuteronomy Joshua Judges Ruth Samuel Kings Chronicles Ezra Nehemiah Esther Job Psalms Proverbs Ecclesiastes Isaiah Jeremiah Lamentations Ezekiel Daniel Hosea Joel Amos Obadiah Jonah Micah Nahum Habakkuk Zephaniah Haggai Zechariah Malachi Matthew Mark Luke John Acts Romans Corinthians Galatians Ephesians Philippians Colossians Thessalonians Timothy Titus Philemon Hebrews James Peter John Jude Revelation chapter verse',
+      },
     });
-
-    fs.unlinkSync(tempPath);
-    const result = await response.json();
-    if (!response.ok) return { success: false, error: result.error?.message || 'Whisper API error' };
+    if (result._status !== 200) {
+      if (result.upgradeRequired) return { success: false, error: result.error, upgradeRequired: true };
+      return { success: false, error: result.error?.message || result.error || 'Whisper API error' };
+    }
 
     const hallucinations = [
       /thanks for watching[.!]?/gi, /please subscribe[.!]?/gi,
@@ -1409,9 +1417,6 @@ ipcMain.handle('ai-fetch-and-display', async (event, reference) => {
 // Semantic Bible reference detection via GPT-4o-mini
 ipcMain.handle('detect-bible-reference', async (_event, data) => {
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) return { success: false, error: 'No OpenAI API key' };
-
     const contextText = data.recentContext
       ? `Previous context: "${data.recentContext}"\nCurrent chunk: "${data.text}"`
       : `"${data.text}"`;
@@ -1654,21 +1659,18 @@ Respond with ONLY one of:
 
 Nothing else. No explanation. No punctuation after.`;
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
+    const aiResult = await aiOpenAI({
+      kind: 'chat',
+      body: {
         model: 'gpt-4o-mini',
         max_tokens: 150,
         messages: [{ role: 'user', content: prompt }]
-      })
+      }
     });
-
-    const aiResult = await response.json();
-    if (!response.ok) return { success: false, error: aiResult.error?.message || 'OpenAI API error' };
+    if (aiResult._status !== 200) {
+      if (aiResult.upgradeRequired) return { success: false, error: aiResult.error, upgradeRequired: true };
+      return { success: false, error: aiResult.error?.message || aiResult.error || 'OpenAI API error' };
+    }
 
     const rawResponse = aiResult.choices[0].message.content.trim().replace(/[.,!?;:]$/g, '');
 
@@ -2389,13 +2391,10 @@ ipcMain.handle('import-pptx', async () => {
 
 ipcMain.handle('fetch-lyrics-gpt', async (_event, { title, artist }) => {
   console.log('[lyrics-gpt] fetching lyrics for:', title, 'by', artist);
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) { console.log('[lyrics-gpt] no API key'); return { success: false, error: 'OPENAI_API_KEY not set' }; }
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify({
+    const data = await aiOpenAI({
+      kind: 'chat',
+      body: {
         model: 'gpt-4o-mini',
         messages: [
           {
@@ -2409,11 +2408,13 @@ ipcMain.handle('fetch-lyrics-gpt', async (_event, { title, artist }) => {
         ],
         max_tokens: 2000,
         temperature: 0
-      })
+      }
     });
-    const data = await response.json();
-    console.log('[lyrics-gpt] response status:', response.status, 'ok:', response.ok);
-    if (!response.ok) { console.log('[lyrics-gpt] error:', data.error); return { success: false, error: data.error?.message || 'OpenAI error' }; }
+    console.log('[lyrics-gpt] proxy status:', data._status);
+    if (data._status !== 200) {
+      if (data.upgradeRequired) return { success: false, error: data.error, upgradeRequired: true };
+      return { success: false, error: data.error?.message || data.error || 'OpenAI error' };
+    }
     const lyrics = data.choices?.[0]?.message?.content?.trim() || '';
     console.log('[lyrics-gpt] got lyrics, length:', lyrics.length);
     return { success: true, lyrics };
@@ -2490,14 +2491,11 @@ ipcMain.handle('read-teaching-doc', async () => {
 ipcMain.handle('extract-weekly-sermon', async (_event, { docText, todayDate }) => {
   const gate = isFeatureAllowed('weeklyTeachingAI');
   if (!gate.allowed) return gate;
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return { success: false, error: 'OPENAI_API_KEY not set' };
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
-      body: JSON.stringify({
+    const data = await aiOpenAI({
+      kind: 'chat',
+      body: {
         model: 'gpt-4o-mini',
         messages: [
           {
@@ -2541,10 +2539,12 @@ Rules:
         ],
         max_tokens: 3000,
         temperature: 0.1
-      })
+      }
     });
-    const data = await response.json();
-    if (!response.ok) return { success: false, error: data.error?.message || 'OpenAI error' };
+    if (data._status !== 200) {
+      if (data.upgradeRequired) return { success: false, error: data.error, upgradeRequired: true };
+      return { success: false, error: data.error?.message || data.error || 'OpenAI error' };
+    }
     const raw = data.choices?.[0]?.message?.content?.trim() || '';
     const jsonStr = raw.replace(/^```json?\s*/i, '').replace(/\s*```$/, '');
     const parsed = JSON.parse(jsonStr);
