@@ -38,7 +38,7 @@
     elegant: {
       id: 'elegant', name: 'Elegant',
       backgrounds: {
-        default:          { type: 'color', color: 'linear-gradient(140deg, #1c1526 0%, #2b2038 55%, #14101c 100%)', overlayColor: '#000000', overlayOpacity: 0 },
+        default:          { type: 'image', imageUrl: '../assets/templates/elegant-1.jpg', overlayColor: '#0e0714', overlayOpacity: 0.15 },
         'section-header': { type: 'color', color: '#0e0a14', overlayOpacity: 0 },
       },
       roleStyles: {
@@ -86,7 +86,7 @@
     revival: {
       id: 'revival', name: 'Revival',
       backgrounds: {
-        default:          { type: 'color', color: 'radial-gradient(ellipse at 50% 25%, #9a3412 0%, #5c1d08 55%, #2c0f04 100%)', overlayColor: '#000000', overlayOpacity: 0 },
+        default:          { type: 'image', imageUrl: '../assets/templates/revival-1.jpg', overlayColor: '#2c0f04', overlayOpacity: 0.45 },
         'section-header': { type: 'color', color: 'linear-gradient(180deg, #431407 0%, #1c0a03 100%)', overlayOpacity: 0 },
       },
       roleStyles: {
@@ -102,7 +102,7 @@
     nature: {
       id: 'nature', name: 'Nature',
       backgrounds: {
-        default:          { type: 'color', color: 'linear-gradient(150deg, #163a2c 0%, #0d241b 55%, #071912 100%)', overlayColor: '#000000', overlayOpacity: 0 },
+        default:          { type: 'image', imageUrl: '../assets/templates/nature-1.jpg', overlayColor: '#071912', overlayOpacity: 0.2 },
         'section-header': { type: 'color', color: '#081b13', overlayOpacity: 0 },
       },
       roleStyles: {
@@ -134,7 +134,7 @@
     dramatic: {
       id: 'dramatic', name: 'Dramatic',
       backgrounds: {
-        default:          { type: 'color', color: '#000000', overlayColor: '#000000', overlayOpacity: 0 },
+        default:          { type: 'image', imageUrl: '../assets/templates/dramatic-1.jpg', overlayColor: '#000000', overlayOpacity: 0.3 },
         'section-header': { type: 'color', color: '#000000', overlayOpacity: 0 },
       },
       roleStyles: {
