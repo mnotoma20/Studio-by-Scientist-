@@ -54,7 +54,7 @@
     worship: {
       id: 'worship', name: 'Worship',
       backgrounds: {
-        default:          { type: 'color', color: 'linear-gradient(160deg, #3b1d8a 0%, #241a63 55%, #100a30 100%)', overlayColor: '#000000', overlayOpacity: 0 },
+        default:          { type: 'image', imageUrl: '../assets/templates/worship-1.jpg', overlayColor: '#100a30', overlayOpacity: 0.1 },
         'section-header': { type: 'color', color: 'linear-gradient(180deg, #1a1147 0%, #0c0824 100%)', overlayOpacity: 0 },
       },
       roleStyles: {
@@ -70,7 +70,7 @@
     modern: {
       id: 'modern', name: 'Modern',
       backgrounds: {
-        default:          { type: 'color', color: 'linear-gradient(180deg, #14141c 0%, #09090d 100%)', overlayColor: '#000000', overlayOpacity: 0 },
+        default:          { type: 'image', imageUrl: '../assets/templates/modern-1.jpg', overlayColor: '#09090d', overlayOpacity: 0.1 },
         'section-header': { type: 'color', color: '#09090d', overlayOpacity: 0 },
       },
       roleStyles: {
@@ -118,7 +118,7 @@
     minimal: {
       id: 'minimal', name: 'Minimal',
       backgrounds: {
-        default:          { type: 'color', color: '#f5f2ec', overlayColor: '#000000', overlayOpacity: 0 },
+        default:          { type: 'image', imageUrl: '../assets/templates/minimal-1.jpg', overlayColor: '#ffffff', overlayOpacity: 0 },
         'section-header': { type: 'color', color: '#ffffff', overlayOpacity: 0 },
       },
       roleStyles: {
@@ -150,7 +150,7 @@
     warm: {
       id: 'warm', name: 'Warm',
       backgrounds: {
-        default:          { type: 'color', color: 'linear-gradient(160deg, #fde8d7 0%, #f7cfb4 55%, #ecb595 100%)', overlayColor: '#000000', overlayOpacity: 0 },
+        default:          { type: 'image', imageUrl: '../assets/templates/warm-1.jpg', overlayColor: '#fff4e8', overlayOpacity: 0 },
         'section-header': { type: 'color', color: 'linear-gradient(180deg, #f8d9c3 0%, #edbfa1 100%)', overlayOpacity: 0 },
       },
       roleStyles: {
