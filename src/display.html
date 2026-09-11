@@ -35,7 +35,11 @@
       flex-direction: column;
       align-items: center;
       justify-content: safe center;
-      padding: 4px 12px;
+      /* Safe side margin so verse/lyric text clears decorative borders baked into
+         background images (gold frames, corner accents) instead of running edge-to-edge.
+         vw so it scales the same way on any screen/projector resolution. Vertical stays
+         ~0 — autoFitContent()'s height binary-search assumes negligible top/bottom padding. */
+      padding: 4px 7vw;
       overflow: hidden;
     }
 
