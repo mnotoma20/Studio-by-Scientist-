@@ -22,12 +22,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      # --omit=optional: pdfjs-dist lists `canvas` as an optional dependency (a native
-      # module needing a C/C++ build toolchain — cairo/pango — that isn't reliably present
-      # on fresh runners). We never need it: canvas is a Node-side polyfill for headless PDF
-      # rendering, and this app only ever renders PDFs inside Electron's renderer, which
-      # already has a real browser Canvas. Skipping it is what was failing npm ci outright.
-      - run: npm ci --omit=optional
+      - run: npm ci
       - run: npm run build-mac
       - uses: actions/upload-artifact@v4
         with:
@@ -43,7 +38,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm ci --omit=optional
+      - run: npm ci
       - run: npm run build-win
       - uses: actions/upload-artifact@v4
         with:
