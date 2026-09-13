@@ -105,9 +105,9 @@
       letter-spacing: -0.01em;
     }
 
-    /* The wave-revealed name segment. background-clip:text has to live on the element
-       that actually holds the text node (.name-text) — putting it on the wrapper instead
-       left the name fully transparent with nothing to clip against. */
+    /* The name segment. background-clip:text has to live on the element that actually
+       holds the text node (.name-text) — putting it on the wrapper instead left the name
+       fully transparent with nothing to clip against. */
     .name-wrap {
       position: relative;
       display: inline-block;
@@ -118,33 +118,13 @@
       background: linear-gradient(135deg, var(--c1), var(--c2));
       -webkit-background-clip: text;
       background-clip: text;
-      clip-path: inset(0 100% 0 0);
       filter: blur(10px);
-      animation: revealName 1.7s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards;
+      opacity: 0;
+      animation: revealName 1s ease-out 0.3s forwards;
     }
     @keyframes revealName {
-      0%   { clip-path: inset(0 101% 0 -1%); filter: blur(10px); }
-      65%  { filter: blur(3px); }
-      100% { clip-path: inset(0 -2% 0 -1%); filter: blur(0); }
-    }
-    /* Positioned with the `left` property (not `transform: translateX`) so its percentage
-       basis matches .name-text's clip-path — both resolve against .name-wrap's own width,
-       which is what keeps the visible wave band riding right on the reveal boundary
-       instead of drifting off into its own, unrelated coordinate space. */
-    .wave-layer {
-      position: absolute;
-      top: -35%; left: -55%;
-      width: 55%; height: 170%;
-      pointer-events: none;
-      filter: blur(3px) drop-shadow(0 0 18px var(--c1));
-      animation: waveSweep 1.7s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards;
-    }
-    .wave-layer.l2 { animation-duration: 1.95s; animation-delay: 0.36s; opacity: 0.7; }
-    .wave-layer.l3 { animation-duration: 1.5s; animation-delay: 0.42s; opacity: 0.45; filter: blur(1px); }
-    @keyframes waveSweep {
-      0%   { left: -55%; opacity: 1; }
-      70%  { opacity: 0.95; }
-      100% { left: 130%; opacity: 0; }
+      0%   { filter: blur(10px); opacity: 0; }
+      100% { filter: blur(0); opacity: 1; }
     }
 
     .subtitle {
@@ -290,8 +270,7 @@
 
     @media (prefers-reduced-motion: reduce) {
       .ambient .blob, .ambient .rays { animation: none !important; }
-      .wave-layer { display: none !important; }
-      .name-text { animation: none !important; clip-path: none !important; filter: none !important; }
+      .name-text { animation: none !important; filter: none !important; opacity: 1 !important; }
       .content, .view-app-btn, .work-row, .verse-box { animation: fadeOnly 0.5s ease forwards !important; }
       .verse-item { transition: opacity 0.4s ease !important; transform: none !important; }
     }
@@ -310,7 +289,7 @@
       <div class="cross">✝</div>
       <div class="eyebrow">Welcome Back</div>
       <h1 class="headline">
-        Welcome back, <span class="name-wrap"><span class="name-text" id="nameText">Friend</span><svg class="wave-layer" viewBox="0 0 400 100" preserveAspectRatio="none"><path d="M0,55 C40,20 80,90 120,55 C160,20 200,90 240,55 C280,20 320,90 360,55 L400,55 L400,100 L0,100 Z" fill="var(--c1)" opacity="0.85"/></svg><svg class="wave-layer l2" viewBox="0 0 400 100" preserveAspectRatio="none"><path d="M0,50 C50,15 90,85 140,50 C190,15 230,85 280,50 C320,15 360,85 400,50 L400,100 L0,100 Z" fill="var(--c2)" opacity="0.7"/></svg><svg class="wave-layer l3" viewBox="0 0 400 100" preserveAspectRatio="none"><path d="M0,60 C60,30 100,95 150,60 C200,30 250,95 300,60 C340,30 370,95 400,60 L400,100 L0,100 Z" fill="#ffffff" opacity="0.35"/></svg></span>
+        Welcome back, <span class="name-wrap"><span class="name-text" id="nameText">Friend</span></span>
       </h1>
       <div class="subtitle">Ready to create something meaningful?</div>
       <button class="view-app-btn" id="viewAppBtn">View Full App →</button>
