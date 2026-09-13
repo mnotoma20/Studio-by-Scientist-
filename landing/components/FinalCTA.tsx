@@ -3,6 +3,16 @@
 import { useRef } from 'react'
 import { motion, useInView } from 'framer-motion'
 
+// Fixed, version-free filenames published by .github/workflows/build-release.yml onto a
+// rolling "latest" GitHub Release — every push to main overwrites what's behind these
+// links, so they never need to change here on a version bump.
+const RELEASES_BASE = 'https://github.com/mnotoma20/Studio-by-Scientist-/releases/latest/download'
+const DOWNLOAD_URLS = {
+  mac: `${RELEASES_BASE}/StudioByScientist-Mac-AppleSilicon.dmg`,
+  macIntel: `${RELEASES_BASE}/StudioByScientist-Mac-Intel.dmg`,
+  windows: `${RELEASES_BASE}/StudioByScientist-Windows-Setup.exe`,
+}
+
 function AppleIcon() {
   return (
     <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
@@ -68,7 +78,7 @@ export default function FinalCTA() {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
 
-          <a href="#"
+          <a href={DOWNLOAD_URLS.mac} target="_blank" rel="noopener noreferrer"
             className="btn-gradient relative inline-flex items-center gap-3 px-8 py-4 rounded-xl text-base font-semibold text-white overflow-hidden shadow-2xl group">
             <span className="relative z-10 flex items-center gap-3">
               <AppleIcon />
@@ -76,7 +86,7 @@ export default function FinalCTA() {
             </span>
           </a>
 
-          <a href="#"
+          <a href={DOWNLOAD_URLS.windows} target="_blank" rel="noopener noreferrer"
             className="inline-flex items-center gap-3 px-8 py-4 rounded-xl text-base font-medium text-white transition-all duration-200 hover:bg-white/5 hover:-translate-y-0.5"
             style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
             <WindowsIcon />
@@ -89,7 +99,7 @@ export default function FinalCTA() {
           animate={inView ? { opacity: 1 } : {}}
           transition={{ duration: 0.5, delay: 0.45 }}
           className="text-xs" style={{ color: '#374151' }}>
-          Also available for Linux · Auto-updates built in · Free forever plan available
+          Intel Mac? <a href={DOWNLOAD_URLS.macIntel} target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-300">Download here</a> · Auto-updates built in · Free forever plan available
         </motion.p>
       </div>
     </section>

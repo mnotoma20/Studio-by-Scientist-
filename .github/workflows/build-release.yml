@@ -1,0 +1,77 @@
+name: Build & publish latest release
+
+# Builds the real Mac + Windows installers on their native platforms (Wine can't
+# cross-compile the .exe on macOS right now — Homebrew disabled wine-stable/@devel/@staging
+# on 2026-09-01 for failing Gatekeeper), then republishes them under fixed, version-free
+# filenames on a single rolling "latest" GitHub Release. The landing site's download
+# buttons link straight to those fixed names, so they never need to change on a version
+# bump — every push to main just overwrites what's behind them.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build-mac
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-build
+          path: |
+            dist/*.dmg
+          if-no-files-found: error
+
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run build-win
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win-build
+          path: |
+            dist/*.exe
+          if-no-files-found: error
+
+  publish:
+    needs: [build-mac, build-win]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: downloads
+
+      - name: Rename to fixed, version-free filenames
+        run: |
+          set -e
+          mkdir -p release
+          mac_arm64=$(ls downloads/mac-build/*-arm64.dmg)
+          mac_intel=$(ls downloads/mac-build/*.dmg | grep -v arm64)
+          win_exe=$(ls downloads/win-build/*.exe)
+          cp "$mac_arm64" "release/StudioByScientist-Mac-AppleSilicon.dmg"
+          cp "$mac_intel" "release/StudioByScientist-Mac-Intel.dmg"
+          cp "$win_exe" "release/StudioByScientist-Windows-Setup.exe"
+          ls -la release
+
+      - name: Publish rolling "latest" release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          body: Automatically built from the latest commit on main. Not a versioned release — this link always points at the newest build.
+          make_latest: true
+          files: release/*
