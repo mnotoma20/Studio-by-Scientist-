@@ -78,7 +78,7 @@ export default function FinalCTA() {
           transition={{ duration: 0.6, delay: 0.3 }}
           className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
 
-          <a href={DOWNLOAD_URLS.mac} target="_blank" rel="noopener noreferrer"
+          <a href={DOWNLOAD_URLS.mac}
             className="btn-gradient relative inline-flex items-center gap-3 px-8 py-4 rounded-xl text-base font-semibold text-white overflow-hidden shadow-2xl group">
             <span className="relative z-10 flex items-center gap-3">
               <AppleIcon />
@@ -86,7 +86,7 @@ export default function FinalCTA() {
             </span>
           </a>
 
-          <a href={DOWNLOAD_URLS.windows} target="_blank" rel="noopener noreferrer"
+          <a href={DOWNLOAD_URLS.windows}
             className="inline-flex items-center gap-3 px-8 py-4 rounded-xl text-base font-medium text-white transition-all duration-200 hover:bg-white/5 hover:-translate-y-0.5"
             style={{ border: '1px solid rgba(255,255,255,0.12)' }}>
             <WindowsIcon />
@@ -99,7 +99,7 @@ export default function FinalCTA() {
           animate={inView ? { opacity: 1 } : {}}
           transition={{ duration: 0.5, delay: 0.45 }}
           className="text-xs" style={{ color: '#374151' }}>
-          Intel Mac? <a href={DOWNLOAD_URLS.macIntel} target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-300">Download here</a> · Auto-updates built in · Free forever plan available
+          Intel Mac? <a href={DOWNLOAD_URLS.macIntel} className="underline hover:text-gray-300">Download here</a> · Auto-updates built in · Free forever plan available
         </motion.p>
       </div>
     </section>
