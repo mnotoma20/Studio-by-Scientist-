@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
-package-lock.json
+# package-lock.json is intentionally committed — npm ci in CI (build-release.yml) requires
+# it, and it's what makes installs reproducible instead of drifting between machines.
 
 # Electron build files
 dist/
