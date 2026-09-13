@@ -8227,6 +8227,18 @@ function renderScreenCards() {
             </div>
           </div>
           ` : ''}
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(167,139,250,0.1);">
+            <div>
+              <div style="color: #fff; font-size: 13px; font-weight: 600;">🟢 Chroma Key Green Background</div>
+              <div style="color: #6b7280; font-size: 11px; margin-top: 1px;">Solid broadcast green behind text — feed this into a switcher (TriCaster, vMix, ATEM, OBS) to key out and overlay lyrics/verses on the live camera feed</div>
+            </div>
+            <div onclick="toggleScreenChroma(${config.screen_index})" style="
+              width: 44px; height: 24px; flex-shrink: 0;
+              background: ${config.chroma_key ? '#22c55e' : '#374151'};
+              border-radius: 12px; cursor: pointer; position: relative; transition: background 0.2s;">
+              <div style="position: absolute; top: 3px; left: ${config.chroma_key ? '23px' : '3px'}; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: left 0.2s;"></div>
+            </div>
+          </div>
         ` : `
           <div style="color: #4b5563; font-size: 13px; text-align: center; padding: 4px 0;">Toggle on to activate this screen</div>
         `}
@@ -8278,6 +8290,16 @@ async function setNDIName(screenIndex, name) {
   if (!config) return;
   config.ndi_name = name;
   await ipcRenderer.invoke('save-screen-config', config);
+}
+
+async function toggleScreenChroma(screenIndex) {
+  const config = screenConfigsLocal.find(c => c.screen_index === screenIndex);
+  if (!config) return;
+  config.chroma_key = !config.chroma_key;
+  await ipcRenderer.invoke('save-screen-config', config);
+  // Reload the live window immediately so the background swap takes effect now
+  if (config.enabled) ipcRenderer.send('reload-screen', { screenIndex });
+  renderScreenCards();
 }
 
 // ============================================

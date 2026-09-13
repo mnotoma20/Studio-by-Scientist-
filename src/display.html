@@ -43,6 +43,16 @@
       overflow: hidden;
     }
 
+    /* Chroma key output mode (Settings → Screens → Chroma Key Green Background) — solid
+       broadcast green behind text so a video switcher (TriCaster, vMix, ATEM, OBS) can key
+       it out and overlay lyrics/verses on the live camera feed. #00FF00 is the standard
+       software chroma-key green. !important beats any inline background a feature sets
+       later (background images, gradients) — covers verses/lyrics, which is the supported
+       path today; slide decks/PPTX still paint their own backgrounds inside their own
+       overlay and aren't suppressed by this. */
+    body.chroma-mode { background: #00FF00 !important; }
+    body.chroma-mode #bgImageOverlay { display: none !important; }
+
     #content {
       animation: fadeIn 0.8s ease-in-out;
       text-align: center;
@@ -328,6 +338,7 @@
   const urlParams = new URLSearchParams(window.location.search);
   const displayProfile = urlParams.get('profile') || 'clean';
   const screenIndex = parseInt(urlParams.get('screenIndex') || '1');
+  if (urlParams.get('chroma') === '1') document.body.classList.add('chroma-mode');
 
   function applyProfile() {
     const isStage = displayProfile === 'stage' || displayProfile === 'full';

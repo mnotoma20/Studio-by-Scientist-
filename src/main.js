@@ -461,7 +461,8 @@ async function createDisplayWindows() {
       query: {
         profile: config.content_profile,
         screenIndex: config.screen_index.toString(),
-        screenName: config.screen_name
+        screenName: config.screen_name,
+        chroma: config.chroma_key ? '1' : '0'
       }
     });
 
@@ -1933,7 +1934,8 @@ ipcMain.on('reload-screen', async (event, { screenIndex }) => {
     query: {
       profile: config.content_profile,
       screenIndex: config.screen_index.toString(),
-      screenName: config.screen_name
+      screenName: config.screen_name,
+      chroma: config.chroma_key ? '1' : '0'
     }
   });
 
@@ -1991,7 +1993,8 @@ ipcMain.on('toggle-screen', async (event, { screenIndex, enabled }) => {
     query: {
       profile: config.content_profile,
       screenIndex: config.screen_index.toString(),
-      screenName: config.screen_name
+      screenName: config.screen_name,
+      chroma: config.chroma_key ? '1' : '0'
     }
   });
 
