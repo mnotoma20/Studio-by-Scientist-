@@ -64,15 +64,16 @@ function createWelcomeBackWindow(church, onDone) {
     onDone();
   };
 
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
   welcomeBackWindow = new BrowserWindow({
-    width: 480,
-    height: 420,
+    width,
+    height,
     frame: false,
-    transparent: true,
     alwaysOnTop: true,
     center: true,
     resizable: false,
     skipTaskbar: true,
+    backgroundColor: '#0a0a12',
     icon: appIcon,
     webPreferences: {
       nodeIntegration: true,
@@ -84,8 +85,10 @@ function createWelcomeBackWindow(church, onDone) {
   welcomeBackWindow.on('closed', () => { welcomeBackWindow = null; });
 
   ipcMain.once('welcome-back-done', finish);
-  // Safety net in case the renderer never fires (load failure, etc.) — never block startup.
-  setTimeout(finish, 4000);
+  // Safety net in case the renderer never fires (load failure, etc.) — never block startup
+  // indefinitely, but generous since this screen is meant to be dismissed by the user now
+  // (View Full App button / click), not auto-advanced past.
+  setTimeout(finish, 30000);
 }
 
 // Supabase will be imported dynamically when needed
@@ -568,18 +571,19 @@ ipcMain.on('auth-signin', async (event, data) => {
     return;
   }
 
+  // Must happen BEFORE signIn(): supabase-js writes the new session to storage as part of
+  // that call resolving, so persistence has to already be armed for that first write to
+  // land on disk — flipping it on afterward was the bug (session only ever lived in
+  // memory, gone the moment the app closed). Unchecked → make sure nothing lingers from a
+  // previous remembered login on this machine.
+  if (setSessionPersistence) setSessionPersistence(!!data.rememberMe);
+
   const result = await auth.signIn(data.email, data.password);
-  
+
   if (result.success) {
     currentUser = result.user;
     currentChurch = result.church;
-
-    // "Remember me" checked → keep this session (and future refreshes of it) on disk, so
-    // the app stays signed in across restarts. Unchecked → make sure nothing lingers from
-    // a previous remembered login on this machine.
-    if (setSessionPersistence) setSessionPersistence(!!data.rememberMe);
     if (data.rememberMe) store.set('rememberedEmail', data.email);
-
     console.log('✅ Sign in successful!');
   }
 
@@ -651,16 +655,16 @@ ipcMain.on('auth-verify-otp', async (event, data) => {
     return;
   }
 
+  // Before verifyOTP() for the same reason as auth-signin — supabase-js persists the new
+  // session as part of that call resolving. Brand-new account completing signup → keep it
+  // signed in by default (there's no "remember me" checkbox on this flow).
+  if (setSessionPersistence) setSessionPersistence(true);
+
   const result = await auth.verifyOTP(data.email, data.token, data.type);
-  
+
   if (result.success) {
     currentUser = result.user;
     currentChurch = result.church;
-
-    // A brand-new account completing signup — keep it signed in by default (there's no
-    // "remember me" checkbox on this flow).
-    if (setSessionPersistence) setSessionPersistence(true);
-
     console.log('✅ OTP verified!');
   }
 

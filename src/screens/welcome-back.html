@@ -6,173 +6,448 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    body {
-      background: transparent;
-      height: 100vh;
+    html, body {
+      width: 100%; height: 100%;
+      background: #0a0a12;
       overflow: hidden;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: default;
       -webkit-app-region: drag;
     }
 
-    .card {
-      width: 92%;
-      height: 92%;
-      border-radius: 26px;
-      background: radial-gradient(120% 140% at 15% 0%, #2b2038 0%, #1a1526 45%, #100a17 100%);
-      border: 1px solid rgba(167, 139, 250, 0.25);
-      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+    .scene {
+      position: relative;
+      width: 100%; height: 100%;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 18px;
-      padding: 40px;
-      text-align: center;
-      position: relative;
       overflow: hidden;
-      opacity: 0;
-      animation: cardIn 0.5s ease-out forwards;
+      background:
+        radial-gradient(ellipse 70% 55% at 20% 15%, color-mix(in srgb, var(--c1) 30%, transparent) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 85% 85%, color-mix(in srgb, var(--c2) 26%, transparent) 0%, transparent 60%),
+        linear-gradient(160deg, var(--bg1) 0%, var(--bg2) 55%, var(--bg1) 100%);
     }
 
-    /* Soft ambient glow blobs, subtly drifting — same restrained motion language as the
-       rest of the app's brand (purple/pink), not busy particles. */
-    .glow {
+    /* ---- Slow ambient background motion (never fully static) ---- */
+    .ambient {
+      position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    }
+    .ambient .blob {
       position: absolute;
       border-radius: 50%;
-      filter: blur(40px);
-      opacity: 0.55;
-      pointer-events: none;
+      filter: blur(70px);
+      opacity: 0.5;
+      will-change: transform;
     }
-    .glow-a { width: 220px; height: 220px; background: #a78bfa; top: -60px; left: -50px; animation: drift1 7s ease-in-out infinite; }
-    .glow-b { width: 200px; height: 200px; background: #ec4899; bottom: -60px; right: -40px; animation: drift2 8s ease-in-out infinite; }
+    .ambient .blob-a {
+      width: 42vw; height: 42vw; top: -14vw; left: -10vw;
+      background: var(--c1);
+      animation: driftA 26s ease-in-out infinite;
+    }
+    .ambient .blob-b {
+      width: 36vw; height: 36vw; bottom: -12vw; right: -8vw;
+      background: var(--c2);
+      animation: driftB 30s ease-in-out infinite;
+    }
+    @keyframes driftA {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(3vw, 2vw) scale(1.08); }
+    }
+    @keyframes driftB {
+      0%, 100% { transform: translate(0, 0) scale(1); }
+      50% { transform: translate(-2.5vw, -2vw) scale(1.05); }
+    }
+    .ambient .rays {
+      position: absolute; inset: 0;
+      background: repeating-conic-gradient(from 200deg at 90% 0%,
+        rgba(255,255,255,0.04) 0deg 2deg, transparent 2deg 14deg);
+      opacity: 0.5;
+      animation: raysDrift 60s linear infinite;
+      mix-blend-mode: screen;
+    }
+    @keyframes raysDrift {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
 
-    @keyframes drift1 {
-      0%, 100% { transform: translate(0, 0); }
-      50% { transform: translate(20px, 15px); }
-    }
-    @keyframes drift2 {
-      0%, 100% { transform: translate(0, 0); }
-      50% { transform: translate(-18px, -14px); }
-    }
-
-    @keyframes cardIn {
-      from { opacity: 0; transform: scale(0.96); }
-      to { opacity: 1; transform: scale(1); }
-    }
-
-    .icon {
-      font-size: 40px;
+    /* ---- Main content ---- */
+    .content {
+      position: relative; z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+      text-align: center;
+      padding: 0 6vw;
       opacity: 0;
-      animation: popIn 0.5s ease-out 0.15s forwards;
-      position: relative;
-      z-index: 1;
+      animation: contentIn 0.9s ease-out 0.2s forwards;
     }
-    @keyframes popIn {
-      from { opacity: 0; transform: translateY(8px) scale(0.8); }
-      to { opacity: 1; transform: translateY(0) scale(1); }
-    }
-
-    .eyebrow {
-      position: relative;
-      z-index: 1;
-      color: #f0c869;
-      font-size: 12px;
-      font-weight: 700;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      opacity: 0;
-      animation: fadeUp 0.5s ease-out 0.25s forwards;
-    }
-
-    .headline {
-      position: relative;
-      z-index: 1;
-      font-size: 30px;
-      font-weight: 800;
-      background: linear-gradient(135deg, #a78bfa 0%, #ec4899 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-      opacity: 0;
-      animation: fadeUp 0.5s ease-out 0.35s forwards;
-      max-width: 90%;
-    }
-
-    .subtext {
-      position: relative;
-      z-index: 1;
-      color: rgba(255, 255, 255, 0.65);
-      font-size: 14px;
-      font-weight: 400;
-      opacity: 0;
-      animation: fadeUp 0.5s ease-out 0.45s forwards;
-    }
-
-    @keyframes fadeUp {
+    @keyframes contentIn {
       from { opacity: 0; transform: translateY(10px); }
       to { opacity: 1; transform: translateY(0); }
     }
 
-    .dots {
+    .cross { font-size: clamp(24px, 3vw, 34px); color: rgba(255,255,255,0.85); margin-bottom: 4px; }
+
+    .eyebrow {
+      color: var(--c1);
+      font-size: clamp(11px, 1.1vw, 13px);
+      font-weight: 700;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+    }
+
+    .headline {
+      font-size: clamp(32px, 4.6vw, 56px);
+      font-weight: 800;
+      color: #f5f3ff;
+      line-height: 1.15;
+      letter-spacing: -0.01em;
+    }
+
+    /* The wave-revealed name segment. background-clip:text has to live on the element
+       that actually holds the text node (.name-text) — putting it on the wrapper instead
+       left the name fully transparent with nothing to clip against. */
+    .name-wrap {
       position: relative;
-      z-index: 1;
-      display: flex;
-      gap: 6px;
-      margin-top: 8px;
+      display: inline-block;
+    }
+    .name-text {
+      display: inline-block;
+      color: transparent;
+      background: linear-gradient(135deg, var(--c1), var(--c2));
+      -webkit-background-clip: text;
+      background-clip: text;
+      clip-path: inset(0 100% 0 0);
+      filter: blur(10px);
+      animation: revealName 1.7s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards;
+    }
+    @keyframes revealName {
+      0%   { clip-path: inset(0 101% 0 -1%); filter: blur(10px); }
+      65%  { filter: blur(3px); }
+      100% { clip-path: inset(0 -2% 0 -1%); filter: blur(0); }
+    }
+    /* Positioned with the `left` property (not `transform: translateX`) so its percentage
+       basis matches .name-text's clip-path — both resolve against .name-wrap's own width,
+       which is what keeps the visible wave band riding right on the reveal boundary
+       instead of drifting off into its own, unrelated coordinate space. */
+    .wave-layer {
+      position: absolute;
+      top: -35%; left: -55%;
+      width: 55%; height: 170%;
+      pointer-events: none;
+      filter: blur(3px) drop-shadow(0 0 18px var(--c1));
+      animation: waveSweep 1.7s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards;
+    }
+    .wave-layer.l2 { animation-duration: 1.95s; animation-delay: 0.36s; opacity: 0.7; }
+    .wave-layer.l3 { animation-duration: 1.5s; animation-delay: 0.42s; opacity: 0.45; filter: blur(1px); }
+    @keyframes waveSweep {
+      0%   { left: -55%; opacity: 1; }
+      70%  { opacity: 0.95; }
+      100% { left: 130%; opacity: 0; }
+    }
+
+    .subtitle {
+      color: rgba(255,255,255,0.6);
+      font-size: clamp(14px, 1.3vw, 17px);
+      font-weight: 400;
+      margin-top: 2px;
+    }
+
+    .view-app-btn {
+      margin-top: 22px;
+      -webkit-app-region: no-drag;
+      padding: 13px 30px;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--c1) 50%, transparent);
+      background: linear-gradient(135deg, color-mix(in srgb, var(--c1) 22%, transparent), color-mix(in srgb, var(--c2) 22%, transparent));
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      cursor: pointer;
       opacity: 0;
-      animation: fadeUp 0.5s ease-out 0.6s forwards;
+      animation: contentIn 0.7s ease-out 1.9s forwards;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    .dots span {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: rgba(167, 139, 250, 0.5);
-      animation: pulse 1.2s ease-in-out infinite;
+    .view-app-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px color-mix(in srgb, var(--c1) 35%, transparent);
     }
-    .dots span:nth-child(2) { animation-delay: 0.15s; }
-    .dots span:nth-child(3) { animation-delay: 0.3s; }
-    @keyframes pulse {
-      0%, 100% { opacity: 0.3; transform: scale(0.85); }
-      50% { opacity: 1; transform: scale(1.15); background: #ec4899; }
+
+    /* ---- Recent work / get started row ---- */
+    .work-row {
+      position: relative; z-index: 2;
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      justify-content: center;
+      max-width: 900px;
+      margin-top: 34px;
+      opacity: 0;
+      animation: contentIn 0.7s ease-out 2.15s forwards;
+      -webkit-app-region: no-drag;
     }
+    .work-card {
+      width: 210px;
+      padding: 14px;
+      border-radius: 12px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.09);
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+    }
+    .work-card:hover {
+      border-color: color-mix(in srgb, var(--c1) 55%, transparent);
+      background: rgba(255,255,255,0.08);
+      transform: translateY(-2px);
+    }
+    .work-card .icon {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--c1), var(--c2));
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+    .work-card .title {
+      color: #fff; font-size: 13px; font-weight: 700;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .work-card .meta {
+      color: rgba(255,255,255,0.45); font-size: 11px; margin-top: 3px;
+    }
+    .get-started-card {
+      display: flex; align-items: center; gap: 14px;
+      padding: 16px 22px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, color-mix(in srgb, var(--c1) 18%, transparent), color-mix(in srgb, var(--c2) 18%, transparent));
+      border: 1px solid color-mix(in srgb, var(--c1) 45%, transparent);
+      cursor: pointer;
+      transition: transform 0.2s ease;
+    }
+    .get-started-card:hover { transform: translateY(-2px); }
+    .get-started-card .icon { font-size: 26px; }
+    .get-started-card .title { color: #fff; font-size: 15px; font-weight: 800; }
+    .get-started-card .sub { color: rgba(255,255,255,0.6); font-size: 12px; margin-top: 2px; }
+
+    /* ---- Scripture rotator ---- */
+    .verse-box {
+      position: absolute; bottom: 6vh; left: 0; right: 0;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+      padding: 0 8vw;
+      opacity: 0;
+      animation: contentIn 0.8s ease-out 1.6s forwards;
+    }
+    .verse-slot { position: relative; min-height: 46px; width: 100%; max-width: 620px; }
+    .verse-item {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+      pointer-events: none;
+    }
+    .verse-item.active { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .verse-item.leaving { opacity: 0; transform: translateY(-8px); }
+    .verse-quote {
+      color: rgba(255,255,255,0.75);
+      font-size: clamp(13px, 1.15vw, 15px);
+      font-style: italic;
+      text-align: center;
+    }
+    .verse-ref {
+      color: var(--c1);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+    .verse-progress {
+      width: 60px; height: 3px; border-radius: 2px;
+      background: rgba(255,255,255,0.12);
+      overflow: hidden;
+    }
+    .verse-progress-fill {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, var(--c1), var(--c2));
+      border-radius: 2px;
+    }
+    .verse-progress-fill.animating {
+      transition: width linear;
+      width: 100%;
+    }
+
+    @media (max-width: 720px) {
+      .work-row { max-width: 96vw; }
+      .work-card { width: 45%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .ambient .blob, .ambient .rays { animation: none !important; }
+      .wave-layer { display: none !important; }
+      .name-text { animation: none !important; clip-path: none !important; filter: none !important; }
+      .content, .view-app-btn, .work-row, .verse-box { animation: fadeOnly 0.5s ease forwards !important; }
+      .verse-item { transition: opacity 0.4s ease !important; transform: none !important; }
+    }
+    @keyframes fadeOnly { from { opacity: 0; } to { opacity: 1; } }
   </style>
 </head>
 <body>
-  <div class="card" id="card">
-    <div class="glow glow-a"></div>
-    <div class="glow glow-b"></div>
-    <div class="icon">✨</div>
-    <div class="eyebrow">Welcome back</div>
-    <div class="headline" id="headline">Ready to create something special?</div>
-    <div class="subtext" id="subtext">Loading your workspace…</div>
-    <div class="dots"><span></span><span></span><span></span></div>
+  <div class="scene" id="scene">
+    <div class="ambient">
+      <div class="blob blob-a"></div>
+      <div class="blob blob-b"></div>
+      <div class="rays"></div>
+    </div>
+
+    <div class="content">
+      <div class="cross">✝</div>
+      <div class="eyebrow">Welcome Back</div>
+      <h1 class="headline">
+        Welcome back, <span class="name-wrap"><span class="name-text" id="nameText">Friend</span><svg class="wave-layer" viewBox="0 0 400 100" preserveAspectRatio="none"><path d="M0,55 C40,20 80,90 120,55 C160,20 200,90 240,55 C280,20 320,90 360,55 L400,55 L400,100 L0,100 Z" fill="var(--c1)" opacity="0.85"/></svg><svg class="wave-layer l2" viewBox="0 0 400 100" preserveAspectRatio="none"><path d="M0,50 C50,15 90,85 140,50 C190,15 230,85 280,50 C320,15 360,85 400,50 L400,100 L0,100 Z" fill="var(--c2)" opacity="0.7"/></svg><svg class="wave-layer l3" viewBox="0 0 400 100" preserveAspectRatio="none"><path d="M0,60 C60,30 100,95 150,60 C200,30 250,95 300,60 C340,30 370,95 400,60 L400,100 L0,100 Z" fill="#ffffff" opacity="0.35"/></svg></span>
+      </h1>
+      <div class="subtitle">Ready to create something meaningful?</div>
+      <button class="view-app-btn" id="viewAppBtn">View Full App →</button>
+    </div>
+
+    <div class="work-row" id="workRow"></div>
+
+    <div class="verse-box">
+      <div class="verse-slot" id="verseSlot"></div>
+      <div class="verse-progress"><div class="verse-progress-fill" id="verseProgressFill"></div></div>
+    </div>
   </div>
 
   <script>
     const { ipcRenderer } = require('electron');
+
+    // ---- Randomized color palette — a different mood each time the screen appears ----
+    // Kept small and named so it's easy to add/remove a look later.
+    const PALETTES = [
+      { c1: '#60a5fa', c2: '#a78bfa', bg1: '#0a1128', bg2: '#0c1a3d' }, // midnight blue
+      { c1: '#a78bfa', c2: '#ec4899', bg1: '#160f26', bg2: '#1f1533' }, // brand purple/pink
+      { c1: '#2dd4bf', c2: '#f0c869', bg1: '#0a1f1c', bg2: '#0f2b26' }, // teal & gold
+      { c1: '#f472b6', c2: '#fb923c', bg1: '#210f1a', bg2: '#2b1420' }, // rose & amber
+      { c1: '#818cf8', c2: '#22d3ee', bg1: '#0e1030', bg2: '#101a3d' }, // indigo & cyan
+      { c1: '#f0c869', c2: '#d4af37', bg1: '#1c1506', bg2: '#241c0a' }, // reverent gold
+    ];
+    const palette = PALETTES[Math.floor(Math.random() * PALETTES.length)];
+    const root = document.getElementById('scene').style;
+    Object.entries(palette).forEach(([k, v]) => root.setProperty(`--${k}`, v));
+
+    // ---- Dynamic name — comes from the authenticated church's profile, never hardcoded ----
     const params = new URLSearchParams(window.location.search);
-    const churchName = decodeURIComponent(params.get('name') || '');
+    const displayName = decodeURIComponent(params.get('name') || '') || 'Friend';
+    document.getElementById('nameText').textContent = displayName;
 
-    if (churchName) {
-      document.getElementById('headline').textContent = `Welcome back, ${churchName}`;
-      document.getElementById('subtext').textContent = 'Ready to create something special today?';
+    // ---- Scripture rotator — verse list lives in one place so it's easy to edit later ----
+    const SCRIPTURE_VERSES = [
+      { text: 'Faith is the substance of things hoped for, the evidence of things not seen.', ref: 'Hebrews 11:1' },
+      { text: 'I can do all things through Christ which strengtheneth me.', ref: 'Philippians 4:13' },
+      { text: 'Trust in the Lord with all your heart, and lean not unto your own understanding.', ref: 'Proverbs 3:5' },
+      { text: 'With God all things are possible.', ref: 'Matthew 19:26' },
+      { text: 'Be strong and courageous. Do not be afraid; do not be discouraged.', ref: 'Joshua 1:9' },
+    ];
+    function shuffle(arr) {
+      const a = arr.slice();
+      for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
     }
+    const verseOrder = shuffle(SCRIPTURE_VERSES);
+    const verseSlot = document.getElementById('verseSlot');
+    const progressFill = document.getElementById('verseProgressFill');
+    let verseIdx = 0;
+    let verseTimer = null;
 
-    function proceed() {
-      ipcRenderer.send('welcome-back-done');
+    function renderVerse(idx, incoming) {
+      const v = verseOrder[idx];
+      const el = document.createElement('div');
+      el.className = 'verse-item' + (incoming ? '' : ' active');
+      el.innerHTML = `<div class="verse-quote">&ldquo;${v.text}&rdquo;</div><div class="verse-ref">${v.ref}</div>`;
+      verseSlot.appendChild(el);
+      return el;
     }
+    function startProgress() {
+      const durationMs = 6000 + Math.random() * 2000; // 6-8s, varies per cycle
+      progressFill.classList.remove('animating');
+      progressFill.style.width = '0%';
+      // Force reflow so the width reset applies before the transition starts.
+      void progressFill.offsetWidth;
+      progressFill.style.transitionDuration = durationMs + 'ms';
+      progressFill.classList.add('animating');
+      return durationMs;
+    }
+    function advanceVerse() {
+      const current = verseSlot.querySelector('.verse-item.active');
+      verseIdx = (verseIdx + 1) % verseOrder.length;
+      const next = renderVerse(verseIdx, true);
+      requestAnimationFrame(() => {
+        if (current) current.classList.add('leaving');
+        requestAnimationFrame(() => next.classList.add('active'));
+      });
+      setTimeout(() => { if (current) current.remove(); }, 750);
+      const ms = startProgress();
+      verseTimer = setTimeout(advanceVerse, ms);
+    }
+    renderVerse(0, false);
+    const firstMs = startProgress();
+    verseTimer = setTimeout(advanceVerse, firstMs);
 
-    // Auto-advance — quick enough not to feel like a delay, long enough to register.
-    const AUTO_ADVANCE_MS = 2200;
-    const timer = setTimeout(proceed, AUTO_ADVANCE_MS);
+    // ---- Recent work row (or a Get Started prompt for a brand-new church) ----
+    const workRow = document.getElementById('workRow');
+    function timeAgo(iso) {
+      if (!iso) return '';
+      const diffMs = Date.now() - new Date(iso).getTime();
+      const mins = Math.round(diffMs / 60000);
+      if (mins < 1) return 'just now';
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = Math.round(mins / 60);
+      if (hrs < 24) return `${hrs}h ago`;
+      const days = Math.round(hrs / 24);
+      return `${days}d ago`;
+    }
+    function proceed() { ipcRenderer.send('welcome-back-done'); }
 
-    // Click anywhere to skip straight in.
-    document.getElementById('card').addEventListener('click', () => {
-      clearTimeout(timer);
+    ipcRenderer.invoke('get-slide-decks').then((result) => {
+      const decks = (result && result.success && Array.isArray(result.decks)) ? result.decks : [];
+      if (!decks.length) {
+        workRow.innerHTML = `
+          <div class="get-started-card" id="getStartedCard">
+            <div class="icon">🎨</div>
+            <div>
+              <div class="title">Get Started</div>
+              <div class="sub">Pick a ready-made template and build your first deck</div>
+            </div>
+          </div>`;
+        document.getElementById('getStartedCard').addEventListener('click', proceed);
+        return;
+      }
+      workRow.innerHTML = decks.slice(0, 3).map((d) => `
+        <div class="work-card" data-id="${d.id}">
+          <div class="icon">🎬</div>
+          <div class="title">${(d.title || 'Untitled').replace(/</g, '&lt;')}</div>
+          <div class="meta">Edited ${timeAgo(d.updated_at)}</div>
+        </div>
+      `).join('');
+      workRow.querySelectorAll('.work-card').forEach((card) => card.addEventListener('click', proceed));
+    }).catch(() => {
+      // Recent work is a nice-to-have on this screen — never block getting into the app over it.
+      workRow.innerHTML = '';
+    });
+
+    // ---- Dismiss: explicit button or click anywhere on the scene ----
+    document.getElementById('viewAppBtn').addEventListener('click', proceed);
+    document.getElementById('scene').addEventListener('click', (e) => {
+      if (e.target.closest('.work-card, .get-started-card, .view-app-btn')) return;
       proceed();
     });
   </script>

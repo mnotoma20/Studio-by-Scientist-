@@ -55,11 +55,22 @@ const authStorageAdapter = {
   },
 };
 
-// Called from main.js after a successful sign-in/signup (true if "Remember me" was
-// checked) and on explicit sign-out (false, and wipes anything already on disk).
+// Called from main.js (ideally BEFORE auth.signIn()/verifyOTP() — supabase-js writes the
+// session to storage as part of that call resolving, so persistEnabled has to already be
+// true for that first write to land on disk). true if "Remember me" was checked; false on
+// explicit sign-out, which also wipes anything already on disk.
+//
+// Also flushes anything already sitting in the in-memory fallback straight to disk, so
+// enabling this after a session already exists (defensive — in case a future call site
+// does it in the "wrong" order) still takes effect immediately instead of waiting for the
+// next token refresh to write again.
 function setSessionPersistence(enabled) {
   persistEnabled = enabled;
-  if (!enabled) sessionDisk.clear();
+  if (!enabled) { sessionDisk.clear(); return; }
+  for (const key of Object.keys(memoryFallback)) {
+    sessionDisk.set(key, encryptForDisk(memoryFallback[key]));
+    delete memoryFallback[key];
+  }
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
