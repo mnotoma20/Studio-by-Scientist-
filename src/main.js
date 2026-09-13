@@ -19,6 +19,7 @@ let displayWindow; // backward-compat pointer to first enabled non-stage window
 let displayWindows = []; // array of { window, config, screenIndex }
 let screenConfigs = [];
 let splashWindow;
+let welcomeBackWindow;
 let currentUser = null;
 let currentChurch = null;
 
@@ -48,15 +49,56 @@ function createSplashWindow() {
   splashWindow.on('closed', () => { splashWindow = null; });
 }
 
+// Shown once between the splash screen and the main app, only on a cold start where a
+// previously-remembered session was restored automatically (never on a manual sign-in —
+// signin.html already shows its own "Welcome back" message before handing off). Closes
+// itself (via 'welcome-back-done') after a short auto-advance or a click, then `onDone`
+// opens the real app windows.
+function createWelcomeBackWindow(church, onDone) {
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    ipcMain.removeListener('welcome-back-done', finish);
+    if (welcomeBackWindow && !welcomeBackWindow.isDestroyed()) welcomeBackWindow.close();
+    onDone();
+  };
+
+  welcomeBackWindow = new BrowserWindow({
+    width: 480,
+    height: 420,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    center: true,
+    resizable: false,
+    skipTaskbar: true,
+    icon: appIcon,
+    webPreferences: {
+      nodeIntegration: true,
+      contextIsolation: false
+    }
+  });
+  const name = encodeURIComponent(church?.name || '');
+  welcomeBackWindow.loadFile(path.join(__dirname, 'screens', 'welcome-back.html'), { query: { name } });
+  welcomeBackWindow.on('closed', () => { welcomeBackWindow = null; });
+
+  ipcMain.once('welcome-back-done', finish);
+  // Safety net in case the renderer never fires (load failure, etc.) — never block startup.
+  setTimeout(finish, 4000);
+}
+
 // Supabase will be imported dynamically when needed
 let supabase;
 let auth;
+let setSessionPersistence;
 
 function initializeSupabase() {
   try {
-    const { supabase: sb, auth: a } = require('./supabaseConfig');
+    const { supabase: sb, auth: a, setSessionPersistence: sp } = require('./supabaseConfig');
     supabase = sb;
     auth = a;
+    setSessionPersistence = sp;
     console.log('✅ Supabase initialized');
   } catch (error) {
     console.error('❌ Supabase initialization error:', error);
@@ -65,27 +107,23 @@ function initializeSupabase() {
   }
 }
 
-// Check if user is already logged in
+// Check if user is already logged in. No longer gated on the old electron-store marker —
+// supabaseConfig's storage adapter recovers a remembered session (if any) on its own, so
+// this just asks Supabase whether that recovery actually produced a live user.
 async function checkAuth() {
   console.log('🔍 Checking authentication...');
-  
-  // Check stored session
-  const savedSession = store.get('userSession');
-  
-  if (savedSession && auth) {
-    console.log('📝 Found saved session');
-    const result = await auth.getCurrentUser();
-    
-    if (result.success && result.user) {
-      currentUser = result.user;
-      currentChurch = result.church;
-      console.log('✅ User authenticated:', currentUser.email);
-      console.log('🏛️  Church:', currentChurch.name);
-      trackEvent('session_start', { church_name: currentChurch.name });
-      return true;
-    }
+  if (!auth) return false;
+
+  const result = await auth.getCurrentUser();
+  if (result.success && result.user) {
+    currentUser = result.user;
+    currentChurch = result.church;
+    console.log('✅ User authenticated (session restored):', currentUser.email);
+    console.log('🏛️  Church:', currentChurch?.name);
+    trackEvent('session_start', { church_name: currentChurch?.name });
+    return true;
   }
-  
+
   console.log('❌ No valid session found');
   return false;
 }
@@ -535,20 +573,16 @@ ipcMain.on('auth-signin', async (event, data) => {
   if (result.success) {
     currentUser = result.user;
     currentChurch = result.church;
-    
-    // Store session if remember me
-    if (data.rememberMe) {
-      store.set('userSession', {
-        userId: result.user.id,
-        email: result.user.email,
-        churchId: result.church.id
-      });
-      store.set('rememberedEmail', data.email);
-    }
-    
+
+    // "Remember me" checked → keep this session (and future refreshes of it) on disk, so
+    // the app stays signed in across restarts. Unchecked → make sure nothing lingers from
+    // a previous remembered login on this machine.
+    if (setSessionPersistence) setSessionPersistence(!!data.rememberMe);
+    if (data.rememberMe) store.set('rememberedEmail', data.email);
+
     console.log('✅ Sign in successful!');
   }
-  
+
   event.reply('auth-signin-response', result);
 });
 
@@ -589,10 +623,11 @@ ipcMain.on('auth-signout', async () => {
   if (auth) {
     await auth.signOut();
   }
-  
-  // Clear stored session
+  if (setSessionPersistence) setSessionPersistence(false);
+
+  // Clear the old vestigial marker too, if still present from before this app version.
   store.delete('userSession');
-  
+
   currentUser = null;
   currentChurch = null;
   
@@ -621,16 +656,14 @@ ipcMain.on('auth-verify-otp', async (event, data) => {
   if (result.success) {
     currentUser = result.user;
     currentChurch = result.church;
-    
-    store.set('userSession', {
-      userId: result.user.id,
-      email: result.user.email,
-      churchId: result.church?.id
-    });
-    
+
+    // A brand-new account completing signup — keep it signed in by default (there's no
+    // "remember me" checkbox on this flow).
+    if (setSessionPersistence) setSessionPersistence(true);
+
     console.log('✅ OTP verified!');
   }
-  
+
   event.reply('auth-verify-otp-response', result);
 });
 
@@ -796,7 +829,7 @@ app.whenReady().then(async () => {
   if (splashWindow) splashWindow.close();
 
   if (isAuthenticated) {
-    createAppWindows();
+    createWelcomeBackWindow(currentChurch, createAppWindows);
   } else {
     createAuthWindow('signin');
   }
@@ -811,7 +844,7 @@ app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) {
     checkAuth().then(isAuth => {
       if (isAuth) {
-        createAppWindows();
+        createWelcomeBackWindow(currentChurch, createAppWindows);
       } else {
         createAuthWindow('signin');
       }

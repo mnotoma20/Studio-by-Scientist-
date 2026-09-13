@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Welcome Back</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: transparent;
+      height: 100vh;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: default;
+      -webkit-app-region: drag;
+    }
+
+    .card {
+      width: 92%;
+      height: 92%;
+      border-radius: 26px;
+      background: radial-gradient(120% 140% at 15% 0%, #2b2038 0%, #1a1526 45%, #100a17 100%);
+      border: 1px solid rgba(167, 139, 250, 0.25);
+      box-shadow: 0 30px 90px rgba(0, 0, 0, 0.6);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      padding: 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      opacity: 0;
+      animation: cardIn 0.5s ease-out forwards;
+    }
+
+    /* Soft ambient glow blobs, subtly drifting — same restrained motion language as the
+       rest of the app's brand (purple/pink), not busy particles. */
+    .glow {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(40px);
+      opacity: 0.55;
+      pointer-events: none;
+    }
+    .glow-a { width: 220px; height: 220px; background: #a78bfa; top: -60px; left: -50px; animation: drift1 7s ease-in-out infinite; }
+    .glow-b { width: 200px; height: 200px; background: #ec4899; bottom: -60px; right: -40px; animation: drift2 8s ease-in-out infinite; }
+
+    @keyframes drift1 {
+      0%, 100% { transform: translate(0, 0); }
+      50% { transform: translate(20px, 15px); }
+    }
+    @keyframes drift2 {
+      0%, 100% { transform: translate(0, 0); }
+      50% { transform: translate(-18px, -14px); }
+    }
+
+    @keyframes cardIn {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .icon {
+      font-size: 40px;
+      opacity: 0;
+      animation: popIn 0.5s ease-out 0.15s forwards;
+      position: relative;
+      z-index: 1;
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: translateY(8px) scale(0.8); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .eyebrow {
+      position: relative;
+      z-index: 1;
+      color: #f0c869;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      opacity: 0;
+      animation: fadeUp 0.5s ease-out 0.25s forwards;
+    }
+
+    .headline {
+      position: relative;
+      z-index: 1;
+      font-size: 30px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #a78bfa 0%, #ec4899 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      opacity: 0;
+      animation: fadeUp 0.5s ease-out 0.35s forwards;
+      max-width: 90%;
+    }
+
+    .subtext {
+      position: relative;
+      z-index: 1;
+      color: rgba(255, 255, 255, 0.65);
+      font-size: 14px;
+      font-weight: 400;
+      opacity: 0;
+      animation: fadeUp 0.5s ease-out 0.45s forwards;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .dots {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      opacity: 0;
+      animation: fadeUp 0.5s ease-out 0.6s forwards;
+    }
+    .dots span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(167, 139, 250, 0.5);
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    .dots span:nth-child(2) { animation-delay: 0.15s; }
+    .dots span:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; transform: scale(0.85); }
+      50% { opacity: 1; transform: scale(1.15); background: #ec4899; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card" id="card">
+    <div class="glow glow-a"></div>
+    <div class="glow glow-b"></div>
+    <div class="icon">✨</div>
+    <div class="eyebrow">Welcome back</div>
+    <div class="headline" id="headline">Ready to create something special?</div>
+    <div class="subtext" id="subtext">Loading your workspace…</div>
+    <div class="dots"><span></span><span></span><span></span></div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+    const params = new URLSearchParams(window.location.search);
+    const churchName = decodeURIComponent(params.get('name') || '');
+
+    if (churchName) {
+      document.getElementById('headline').textContent = `Welcome back, ${churchName}`;
+      document.getElementById('subtext').textContent = 'Ready to create something special today?';
+    }
+
+    function proceed() {
+      ipcRenderer.send('welcome-back-done');
+    }
+
+    // Auto-advance — quick enough not to feel like a delay, long enough to register.
+    const AUTO_ADVANCE_MS = 2200;
+    const timer = setTimeout(proceed, AUTO_ADVANCE_MS);
+
+    // Click anywhere to skip straight in.
+    document.getElementById('card').addEventListener('click', () => {
+      clearTimeout(timer);
+      proceed();
+    });
+  </script>
+</body>
+</html>
