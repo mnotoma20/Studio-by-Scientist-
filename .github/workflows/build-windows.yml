@@ -1,0 +1,31 @@
+name: Build Windows installer
+
+# Wine is unavailable for cross-compiling the .exe on macOS right now (Homebrew disabled
+# all wine-stable/@devel/@staging casks on 2026-09-01 for failing Gatekeeper), so this
+# builds the real Windows installer on an actual Windows runner instead.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm ci
+
+      - run: npm run build-win
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studio-by-scientist-windows
+          path: |
+            dist/*.exe
+            dist/*.exe.blockmap
+          if-no-files-found: error
