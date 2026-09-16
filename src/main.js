@@ -462,7 +462,8 @@ async function createDisplayWindows() {
         profile: config.content_profile,
         screenIndex: config.screen_index.toString(),
         screenName: config.screen_name,
-        chroma: config.chroma_key ? '1' : '0'
+        chroma: config.chroma_key ? '1' : '0',
+        badgePosition: config.badge_position || 'top-left'
       }
     });
 
@@ -1435,6 +1436,172 @@ ipcMain.handle('ai-fetch-and-display-passive', async (_event, reference) => {
   }
 });
 
+// Public-domain translations served free by bible-api.com, no key needed.
+const FREE_BIBLE_TRANSLATIONS = new Set(['kjv', 'asv', 'web', 'webbe', 'ylt', 'darby', 'bbe', 'oeb-us', 'oeb-cw']);
+
+// Neither the ESV nor NLT API returns per-verse JSON for a whole chapter --
+// both hand back one blob of text/HTML with verse numbers embedded inline,
+// so every verse-boundary token (a bare number) and the text run following it
+// get paired up here. `tokens` alternates [junk-before-first-number, num,
+// text, num, text, ...] -- found via the first pure-digit token rather than
+// assumed to start at index 0/1, since leading headings/whitespace vary.
+function pairVerseNumbersAndText(tokens) {
+  const startIdx = tokens.findIndex((t) => /^\d+$/.test(t.trim()));
+  const verses = [];
+  if (startIdx === -1) return verses;
+  for (let i = startIdx; i < tokens.length - 1; i += 2) {
+    const num = parseInt(tokens[i].trim(), 10);
+    const text = tokens[i + 1].replace(/\s+/g, ' ').trim();
+    if (!isNaN(num) && text) verses.push({ verse: num, text });
+  }
+  return verses;
+}
+
+// Every caller in this app builds queries in bible-api.com's own style --
+// "Book Chapter", "Book Chapter:Verse", "Book Chapter:Verse-Verse" -- so
+// that's the one format fetchEsvPassage/fetchNltPassage accept too; each
+// converts internally to whatever its own API actually wants.
+function parseBookChapterVerse(query) {
+  const m = query.trim().match(/^(.*?)\s+(\d+)(?::(\d+(?:-\d+)?))?$/);
+  if (!m) return { book: query.trim(), chapter: null, verseRange: null };
+  return { book: m[1], chapter: parseInt(m[2], 10), verseRange: m[3] || null };
+}
+
+// ESV API (api.esv.org) -- free developer key from
+// https://api.esv.org/account/create-application/, added to .env as ESV_API_KEY.
+async function fetchEsvPassage(query) {
+  const key = process.env.ESV_API_KEY;
+  if (!key) throw new Error('ESV_API_KEY is not set -- sign up at https://api.esv.org and add it to .env');
+  const url = `https://api.esv.org/v3/passage/text/?q=${encodeURIComponent(query)}&include-verse-numbers=true&include-footnotes=false&include-headings=false&include-short-copyright=false&include-passage-references=false`;
+  const res = await fetch(url, { headers: { Authorization: `Token ${key}` } });
+  if (!res.ok) throw new Error(`ESV API request failed (${res.status})`);
+  const data = await res.json();
+  const raw = (data.passages || [])[0] || '';
+  const tokens = raw.split(/\[?(\d+)\]?\s+/);
+  const { book, chapter } = parseBookChapterVerse(query);
+  return { reference: data.canonical || query, verses: pairVerseNumbersAndText(tokens).map((v) => ({ book_name: book, chapter, verse: v.verse, text: v.text })) };
+}
+
+// NLT API (api.nlt.to) -- free developer key from https://api.nlt.to/,
+// added to .env as NLT_API_KEY. Returns an HTML fragment (no plain-text/JSON
+// option); each verse number lives in a <span class="vn"> tag, used here as
+// the split point before stripping the remaining markup. NLT's own ref param
+// is dot-separated ("John.3.16"), so the incoming space/colon query is
+// converted before the request.
+// Removes a <span class="CLASS">...</span> block and everything inside it,
+// correctly handling nested <span> tags (NLT footnotes nest a <span class="tn-ref">
+// inside <span class="tn">) by tracking open/close depth -- a naive non-greedy
+// regex would stop at the first (nested) </span> and leave footnote text behind.
+function stripBalancedSpan(html, className) {
+  const openTag = `<span class="${className}">`;
+  let result = '';
+  let i = 0;
+  while (i < html.length) {
+    const start = html.indexOf(openTag, i);
+    if (start === -1) { result += html.slice(i); break; }
+    result += html.slice(i, start);
+    let depth = 1;
+    let pos = start + openTag.length;
+    while (depth > 0 && pos < html.length) {
+      const nextOpen = html.indexOf('<span', pos);
+      const nextClose = html.indexOf('</span>', pos);
+      if (nextClose === -1) { pos = html.length; break; }
+      if (nextOpen !== -1 && nextOpen < nextClose) {
+        depth++;
+        pos = nextOpen + 5;
+      } else {
+        depth--;
+        pos = nextClose + 7;
+      }
+    }
+    i = pos;
+  }
+  return result;
+}
+
+async function fetchNltPassage(query) {
+  const key = process.env.NLT_API_KEY;
+  if (!key) throw new Error('NLT_API_KEY is not set -- sign up at https://api.nlt.to and add it to .env');
+  const { book, chapter, verseRange } = parseBookChapterVerse(query);
+  // NLT's book naming differs from bible-api.com's ("Song of Solomon") for
+  // exactly one book -- confirmed by testing all 66 books against the live API.
+  const nltBook = book === 'Song of Solomon' ? 'Song of Songs' : book;
+  const nltRef = chapter == null ? nltBook : verseRange ? `${nltBook}.${chapter}.${verseRange}` : `${nltBook}.${chapter}`;
+  // version=NLT is required -- omitting it, the API inconsistently defaults
+  // some books (2 Samuel, Genesis, ...) to NTV, Tyndale's Spanish sister
+  // translation, instead of English NLT. Confirmed against the live API.
+  const url = `https://api.nlt.to/api/passages?ref=${encodeURIComponent(nltRef)}&version=NLT&key=${key}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`NLT API request failed (${res.status})`);
+  const html = await res.text();
+  // Footnote markers/content must be removed before stripping tags, or the
+  // footnote text itself (not just its wrapper tags) ends up polluting the
+  // verse -- confirmed against a live response for John 3:16.
+  let cleaned = html.replace(/<a class="a-tn">.*?<\/a>/g, '');
+  cleaned = stripBalancedSpan(cleaned, 'tn');
+  const marked = cleaned.replace(/<span class="vn">(\d+)<\/span>/g, ' $1 ');
+  const stripped = marked
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&#8216;/g, "‘")
+    .replace(/&#8217;/g, "’")
+    .replace(/&#8220;/g, "“")
+    .replace(/&#8221;/g, "”");
+  const tokens = stripped.split(' ');
+  return { reference: query, verses: pairVerseNumbersAndText(tokens).map((v) => ({ book_name: book, chapter, verse: v.verse, text: v.text })) };
+}
+
+// Serves the Bible tab's chapter loader (control.html loadChapter) --
+// replaces its old direct bible-api.com fetch so a translation can be routed
+// to whichever backend actually has it (free public-domain vs. licensed
+// ESV/NLT), all normalized to the same {verses: [{book_name,chapter,verse,text}]}
+// shape bible-api.com itself returns, so the renderer's mapping code didn't
+// need to change per-backend. fetchEsvPassage/fetchNltPassage both accept the
+// same "Book Chapter" query bible-api.com itself uses -- each converts to its
+// own API's actual ref format (NLT is dot-separated) internally.
+ipcMain.handle('fetch-bible-chapter', async (event, { book, chapter, translation }) => {
+  try {
+    if (translation === 'esv' || translation === 'nlt') {
+      const fetchPassage = translation === 'esv' ? fetchEsvPassage : fetchNltPassage;
+      const { verses } = await fetchPassage(`${book} ${chapter}`);
+      return { success: true, verses };
+    }
+
+    const trans = FREE_BIBLE_TRANSLATIONS.has(translation) ? translation : 'kjv';
+    const res = await fetch(`https://bible-api.com/${encodeURIComponent(book)}+${chapter}?translation=${trans}`);
+    const data = await res.json();
+    if (!data.verses) return { success: false, error: 'Could not load chapter' };
+    return { success: true, verses: data.verses };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
+// Serves the two single-reference search flows (prayer-linked-verse search,
+// schedule Bible search) that used to fetch bible-api.com directly -- same
+// ESV/NLT routing as fetch-bible-chapter, normalized to bible-api.com's own
+// single-query response shape ({reference, text, verses}) so those callers'
+// existing data.text / data.verses[0] handling keeps working unchanged.
+ipcMain.handle('fetch-bible-passage', async (event, { query, translation }) => {
+  try {
+    if (translation === 'esv' || translation === 'nlt') {
+      const fetchPassage = translation === 'esv' ? fetchEsvPassage : fetchNltPassage;
+      const { reference, verses } = await fetchPassage(query);
+      if (!verses.length) return { success: false, error: 'Not found' };
+      const text = verses.map((v) => v.text).join(' ');
+      return { success: true, reference, text, verses };
+    }
+
+    const trans = FREE_BIBLE_TRANSLATIONS.has(translation) ? translation : 'kjv';
+    const res = await fetch(`https://bible-api.com/${encodeURIComponent(query)}?translation=${trans}`);
+    const data = await res.json();
+    if (!data.text && !data.verses) return { success: false, error: 'Not found' };
+    return { success: true, reference: data.reference, text: data.text, verses: data.verses };
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('ai-fetch-and-display', async (event, reference) => {
   try {
     const url = `https://bible-api.com/${encodeURIComponent(reference)}?translation=kjv`;
@@ -1856,20 +2023,13 @@ ipcMain.handle('get-available-displays', () => {
 });
 
 ipcMain.handle('get-screen-configs', async () => {
-  try {
-    const { data, error } = await supabase
-      .from('screen_configs')
-      .select('*')
-      .order('screen_index', { ascending: true });
-    if (error) throw error;
-    const defaults = getDefaultScreenConfigs();
-    const merged = data?.length
-      ? defaults.map(def => data.find(d => d.screen_index === def.screen_index) || def)
-      : defaults;
-    return { success: true, configs: applyStoredTimers(merged) };
-  } catch (error) {
-    return { success: false, error: error.message, configs: applyStoredTimers(getDefaultScreenConfigs()) };
-  }
+  // Serves the in-memory screenConfigs (loaded once at boot by loadScreenConfigs,
+  // kept in sync by every save-screen-config write) rather than re-querying
+  // Supabase on every tab visit -- that re-query could race a just-issued save
+  // (read the row before/during its replication) and show a stale toggle state
+  // even though the live display window had already reloaded with the correct,
+  // newer value.
+  return { success: true, configs: applyStoredTimers(screenConfigs) };
 });
 
 ipcMain.handle('save-screen-config', async (event, config) => {
@@ -1935,7 +2095,8 @@ ipcMain.on('reload-screen', async (event, { screenIndex }) => {
       profile: config.content_profile,
       screenIndex: config.screen_index.toString(),
       screenName: config.screen_name,
-      chroma: config.chroma_key ? '1' : '0'
+      chroma: config.chroma_key ? '1' : '0',
+      badgePosition: config.badge_position || 'top-left'
     }
   });
 
@@ -1994,7 +2155,8 @@ ipcMain.on('toggle-screen', async (event, { screenIndex, enabled }) => {
       profile: config.content_profile,
       screenIndex: config.screen_index.toString(),
       screenName: config.screen_name,
-      chroma: config.chroma_key ? '1' : '0'
+      chroma: config.chroma_key ? '1' : '0',
+      badgePosition: config.badge_position || 'top-left'
     }
   });
 

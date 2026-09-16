@@ -134,7 +134,7 @@
   right: 0;
   bottom: 0;
   display: grid;
-  grid-template-columns: 220px 1fr 380px;
+  grid-template-columns: 220px 1fr 480px;
   background: #0f0f1e;
 }
     .books-panel {
@@ -361,6 +361,7 @@
       flex-direction: column;
       padding: 15px;
       gap: 12px;
+      overflow-y: auto;
     }
 
     .preview-label {
@@ -377,7 +378,7 @@
       border-radius: 8px;
       padding: 25px;
       text-align: center;
-      min-height: 280px;
+      min-height: 380px;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -508,19 +509,20 @@
 }
 
 #songsContent .preview-panel {
-  width: 450px;
+  width: 560px;
   background: rgba(26, 26, 46, 0.9);
   border: 2px solid rgba(167, 139, 250, 0.5);
   border-radius: 12px;
   padding: 20px;
   display: flex;
   flex-direction: column;
+  overflow-y: auto;
 }
 
 #lyricsPreview {
   flex: 1;
-  min-height: 400px;
-  max-height: 600px;
+  min-height: 480px;
+  max-height: 750px;
   overflow-y: auto;
   overflow-x: hidden;
   background: rgba(26, 26, 46, 0.6);
@@ -883,6 +885,76 @@
   color: #ec4899;
 }
 
+  /* ---------- Guided tour (per-tab help + first-launch walkthrough) ---------- */
+  .tab-help-btn {
+    width: 20px; height: 20px; border-radius: 50%; flex-shrink: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(167,139,250,0.18); border: 1px solid rgba(167,139,250,0.4);
+    color: #c4b5fd; font-size: 11px; font-weight: 700; cursor: pointer;
+    text-transform: none; letter-spacing: 0;
+  }
+  .tab-help-btn:hover { background: rgba(167,139,250,0.32); }
+
+  .tour-scrim {
+    position: fixed; inset: 70px 0 0 0; z-index: 3000;
+    background: rgba(5,5,14,0.78);
+  }
+  .tour-hole {
+    position: absolute; border-radius: 12px;
+    box-shadow: 0 0 0 4000px rgba(5,5,14,0.78);
+    border: 1.5px solid #ec4899;
+    transition: top 0.35s cubic-bezier(.4,0,.2,1), left 0.35s cubic-bezier(.4,0,.2,1),
+                width 0.35s cubic-bezier(.4,0,.2,1), height 0.35s cubic-bezier(.4,0,.2,1);
+    pointer-events: none;
+  }
+  .tour-hole::after {
+    content: ''; position: absolute; inset: -1.5px; border-radius: inherit;
+    border: 1.5px solid #ec4899; opacity: 0.5;
+    animation: tourPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes tourPulse {
+    0%, 100% { transform: scale(1); opacity: 0.55; }
+    50% { transform: scale(1.06); opacity: 0; }
+  }
+  .tour-card {
+    position: absolute; width: 300px;
+    background: #1a1a2e; border: 2px solid rgba(167,139,250,0.5);
+    border-radius: 14px; padding: 20px 20px 16px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.55);
+    transition: top 0.35s cubic-bezier(.4,0,.2,1), left 0.35s cubic-bezier(.4,0,.2,1);
+    z-index: 3001;
+  }
+  .tour-card.centered { width: 340px; }
+  .tour-eyebrow {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    color: #ec4899; margin-bottom: 10px;
+  }
+  .tour-eyebrow .dot { width: 4px; height: 4px; border-radius: 50%; background: #ec4899; opacity: 0.5; }
+  .tour-title { color: #fff; font-size: 18px; font-weight: 800; line-height: 1.25; margin-bottom: 8px; }
+  .tour-body { font-size: 13px; line-height: 1.55; color: #9ca3af; margin-bottom: 16px; }
+  .tour-footer { display: flex; align-items: center; justify-content: space-between; }
+  .tour-dots { display: flex; gap: 5px; }
+  .tour-dots span { width: 5px; height: 5px; border-radius: 50%; background: rgba(167,139,250,0.25); transition: background 0.2s ease, width 0.2s ease; }
+  .tour-dots span.on { background: #ec4899; width: 14px; border-radius: 3px; }
+  .tour-actions { display: flex; gap: 8px; align-items: center; }
+  .tour-actions button { font: inherit; font-size: 12.5px; font-weight: 600; border-radius: 8px; padding: 7px 14px; cursor: pointer; border: 1px solid transparent; }
+  .tour-btn-skip { background: transparent; color: #6b7280; }
+  .tour-btn-skip:hover { color: #9ca3af; }
+  .tour-btn-next { background: linear-gradient(135deg, #a78bfa, #ec4899); color: #fff; }
+  .tour-btn-next:hover { filter: brightness(1.08); }
+  .tour-btn-back { background: rgba(167,139,250,0.1); color: #9ca3af; border-color: rgba(167,139,250,0.3); padding: 7px 10px; }
+  .tour-btn-back:hover { color: #fff; }
+  .tour-arrow {
+    position: absolute; width: 12px; height: 12px; background: #1a1a2e;
+    border-left: 2px solid rgba(167,139,250,0.5); border-top: 2px solid rgba(167,139,250,0.5);
+    transform: rotate(45deg);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tour-hole::after { animation: none; }
+    .tour-hole, .tour-card { transition: none; }
+  }
+
   </style>
 </head>
 <body>
@@ -979,9 +1051,11 @@
   </div>
 </div>
 
+<div id="tourLayer"></div>
+
     <div class="content-area">
       <div class="books-panel">
-        <div class="panel-header">📚 Books</div>
+        <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;">📚 Books<span class="tab-help-btn" onclick="startTabTour('bible')" title="How this tab works">?</span></div>
         <div class="books-list" id="booksList"></div>
       </div>
 
@@ -995,10 +1069,21 @@
           <button id="groupByLengthBtn" onclick="toggleGroupByLength()" style="background:rgba(45,45,74,0.6);border:1px solid rgba(167,139,250,0.3);color:#9ca3af;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;">Sort: Order</button>
           <button id="multiSelectBtn" onclick="toggleMultiSelect()" title="Select 2+ verses to display together" style="background:rgba(45,45,74,0.6);border:1px solid rgba(167,139,250,0.3);color:#9ca3af;padding:4px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:600;white-space:nowrap;">☐ Multi-select</button>
           <select class="translation-select" id="translation" onchange="reloadChapter()">
-            <option value="kjv">KJV</option>
-            <option value="niv">NIV</option>
-            <option value="nkjv">NKJV</option>
-            <option value="esv">ESV</option>
+            <optgroup label="Public Domain (Free)">
+              <option value="kjv">KJV</option>
+              <option value="asv">ASV</option>
+              <option value="web">WEB</option>
+              <option value="webbe">WEBBE</option>
+              <option value="ylt">YLT</option>
+              <option value="darby">Darby</option>
+              <option value="bbe">BBE</option>
+              <option value="oeb-us">OEB (US)</option>
+              <option value="oeb-cw">OEB (Commonwealth)</option>
+            </optgroup>
+            <optgroup label="Modern (Requires API Key in Settings)">
+              <option value="esv">ESV</option>
+              <option value="nlt">NLT</option>
+            </optgroup>
           </select>
         </div>
 
@@ -1047,10 +1132,11 @@
   <div class="books-panel">
     <div class="panel-header">
       🎵 Songs
-      <div style="display:flex; gap:6px;">
+      <div style="display:flex; gap:6px; align-items:center;">
         <button class="nav-btn" onclick="openSongLibrary()" style="background:rgba(167,139,250,0.2); border-color:rgba(167,139,250,0.5); color:#a78bfa;">📚 Library</button>
         <button class="nav-btn" onclick="openSongImport()" style="background:rgba(6,182,212,0.2); border-color:rgba(6,182,212,0.5); color:#06b6d4;">🌐 Import</button>
         <button class="nav-btn" onclick="createNewSong()">+ New</button>
+        <span class="tab-help-btn" onclick="startTabTour('songs')" title="How this tab works">?</span>
       </div>
     </div>
     <input type="text" class="search-input" placeholder="🔍 Search songs..." style="margin: 10px; width: calc(100% - 20px);">
@@ -1158,7 +1244,10 @@
   <div class="books-panel">
     <div class="panel-header">
       🎨 Themes
-      <button class="nav-btn" onclick="createNewTheme()">+ New</button>
+      <div style="display:flex; gap:6px; align-items:center;">
+        <button class="nav-btn" onclick="createNewTheme()">+ New</button>
+        <span class="tab-help-btn" onclick="startTabTour('themes')" title="How this tab works">?</span>
+      </div>
     </div>
     
     <div style="margin: 10px 0;">
@@ -1344,7 +1433,10 @@
     <div style="background: #1a1a2e; border-right: 1px solid #2d2d4a; display: flex; flex-direction: column; overflow: hidden;">
       <div style="padding: 10px 12px; background: #2d2d4a; font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #374151; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0;">
         📅 Schedules
-        <button onclick="createNewSchedule()" style="background: rgba(167,139,250,0.3); border: 1px solid rgba(167,139,250,0.5); color: #a78bfa; padding: 3px 10px; border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: 700;">+ NEW</button>
+        <div style="display:flex; gap:6px; align-items:center;">
+          <button onclick="createNewSchedule()" style="background: rgba(167,139,250,0.3); border: 1px solid rgba(167,139,250,0.5); color: #a78bfa; padding: 3px 10px; border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: 700;">+ NEW</button>
+          <span class="tab-help-btn" onclick="startTabTour('schedule')" title="How this tab works">?</span>
+        </div>
       </div>
       <div id="schedulesList" style="flex: 1; overflow-y: auto; padding: 8px;"></div>
     </div>
@@ -1639,9 +1731,10 @@
   <!-- Left Panel: Backgrounds List -->
   <div class="books-panel">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-      <h3 style="color: #a78bfa; margin: 0; font-size: 16px;">
+      <h3 style="color: #a78bfa; margin: 0; font-size: 16px; display:flex; align-items:center; gap:8px;">
         <i data-lucide="image" style="width: 18px; height: 18px; vertical-align: middle;"></i>
         Backgrounds
+        <span class="tab-help-btn" onclick="startTabTour('backgrounds')" title="How this tab works">?</span>
       </h3>
       <label class="btn btn-secondary" style="cursor: pointer; font-size: 12px; padding: 6px 10px;">
         <i data-lucide="upload"></i> Upload
@@ -1706,6 +1799,7 @@
         <h2 style="color: #ec4899; margin: 0; font-size: 22px; display: flex; align-items: center; gap: 8px;">
           <i data-lucide="sparkles" style="width: 22px; height: 22px;"></i>
           AI Sermon Notes
+          <span class="tab-help-btn" onclick="startTabTour('sermon-notes')" title="How this tab works">?</span>
         </h2>
         <p style="color: #6b7280; margin: 4px 0 0 0; font-size: 12px;">Powered by Claude AI</p>
       </div>
@@ -2033,6 +2127,18 @@
       </button>
     </div>
 
+    <!-- HELP & TOURS -->
+    <div class="settings-card" style="margin-bottom: 20px;">
+      <div class="settings-card-header">
+        <i data-lucide="help-circle" style="width: 20px; height: 20px; color: #a78bfa;"></i>
+        <h3>Help & Tours</h3>
+      </div>
+      <p style="color: #6b7280; font-size: 12px; margin: 0 0 14px 0;">Every tab has its own <span class="tab-help-btn" style="cursor:default;">?</span> button in the corner — click it any time for a quick walkthrough of that tab's controls.</p>
+      <button class="settings-save-btn" onclick="startWelcomeTour()" style="background: linear-gradient(135deg, #a78bfa, #ec4899);">
+        <i data-lucide="compass"></i> Replay Welcome Tour
+      </button>
+    </div>
+
     <!-- APPEARANCE -->
     <div class="settings-card" style="margin-bottom: 20px;">
       <div class="settings-card-header">
@@ -2273,6 +2379,15 @@
       <p style="color: #4b5563; font-size: 11px; margin-top: 12px;">
         Studio by Scientist v<span id="settingsAppVersion">1.0.0</span> · © 2026 Scientist AI · Houston, Texas
       </p>
+      <div style="border-top: 1px solid rgba(167,139,250,0.15); margin-top: 14px; padding-top: 14px;">
+        <p style="color: #6b7280; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 8px;">Bible Translation Credits</p>
+        <p style="color: #4b5563; font-size: 10.5px; line-height: 1.6; margin-bottom: 8px;">
+          Scripture quotations marked ESV are from The ESV® Bible (The Holy Bible, English Standard Version®), copyright © 2001 by Crossway, a publishing ministry of Good News Publishers. Used by permission. All rights reserved.
+        </p>
+        <p style="color: #4b5563; font-size: 10.5px; line-height: 1.6;">
+          Scripture quotations marked NLT are taken from the Holy Bible, New Living Translation, copyright © 1996, 2004, 2015 by Tyndale House Foundation. Used by permission of Tyndale House Publishers, Carol Stream, Illinois 60188. All rights reserved.
+        </p>
+      </div>
     </div>
 
   </div>
@@ -2529,11 +2644,10 @@
     }
 
     try {
-      const res = await fetch(`https://bible-api.com/${currentBook.name}+${currentChapter}?translation=${trans}`);
-      const data = await res.json();
+      const data = await ipcRenderer.invoke('fetch-bible-chapter', { book: currentBook.name, chapter: currentChapter, translation: trans });
 
-      if (!data.verses) {
-        document.getElementById('versesContainer').innerHTML = '<div style="text-align:center;padding:30px;color:#ff4444;">❌ Could not load chapter</div>';
+      if (!data.success || !data.verses) {
+        document.getElementById('versesContainer').innerHTML = `<div style="text-align:center;padding:30px;color:#ff4444;">❌ ${data.error || 'Could not load chapter'}</div>`;
         return;
       }
 
@@ -2834,6 +2948,21 @@
     'rev':'Revelation','rv':'Revelation','revelation':'Revelation','revelations':'Revelation','revs':'Revelation',
   };
 
+  // Resolves typed text to a canonical book name: exact abbreviation match first
+  // (BIBLE_ABBR), then falling back to a prefix match against real book names
+  // (e.g. "gala" -> "Galatians") so any book works, not just its listed
+  // abbreviations. Only auto-resolves the prefix when it's unambiguous --
+  // "phil" matches both Philippians and Philemon, so that case falls through
+  // and lets the user type a couple more letters (or the explicit "phm").
+  const BIBLE_BOOK_NAMES = [...new Set(Object.values(BIBLE_ABBR))];
+  function resolveBookName(input) {
+    const key = input.trim().toLowerCase();
+    if (BIBLE_ABBR[key]) return BIBLE_ABBR[key];
+    if (key.length < 3) return null;
+    const matches = BIBLE_BOOK_NAMES.filter((name) => name.toLowerCase().startsWith(key));
+    return matches.length === 1 ? matches[0] : null;
+  }
+
   // Returns { book, chapter, verse } or null if the input is a phrase/story
   function parseBibleRef(raw) {
     const s = raw.toLowerCase().trim().replace(/\s+/g, ' ');
@@ -2841,21 +2970,21 @@
     // Pattern 1: book chapter:verse  (e.g. "jn 3:16", "jn3:16", "dan 1:8")
     const m1 = s.match(/^(.+?)\s*(\d+)\s*[:\s]\s*(\d+)\s*$/);
     if (m1) {
-      const bookName = BIBLE_ABBR[m1[1].trim()];
+      const bookName = resolveBookName(m1[1]);
       if (bookName) return { book: bookName, chapter: parseInt(m1[2]), verse: parseInt(m1[3]) };
     }
 
     // Pattern 2: book chapter verse  (e.g. "dan 1 8", "1 sam 3 10")
     const m2 = s.match(/^(.+?)\s+(\d+)\s+(\d+)\s*$/);
     if (m2) {
-      const bookName = BIBLE_ABBR[m2[1].trim()];
+      const bookName = resolveBookName(m2[1]);
       if (bookName) return { book: bookName, chapter: parseInt(m2[2]), verse: parseInt(m2[3]) };
     }
 
     // Pattern 3: book chapter only  (e.g. "psalm 23", "jn 3", "genesis 1")
     const m3 = s.match(/^(.+?)\s*(\d+)\s*$/);
     if (m3) {
-      const bookName = BIBLE_ABBR[m3[1].trim()];
+      const bookName = resolveBookName(m3[1]);
       if (bookName) return { book: bookName, chapter: parseInt(m3[2]), verse: null };
     }
 
@@ -2920,12 +3049,13 @@
       return;
     }
 
-    // Partial book name only (e.g. "josh" with no chapter yet) — navigate to ch 1
-    const parts = raw.toLowerCase().split(/\s+/);
-    const bookName = BIBLE_ABBR[parts[0]];
-    if (bookName && parts.length === 1) {
-      navigateToParsed({ book: bookName, chapter: 1, verse: null });
-      return;
+    // Partial book name only, no chapter typed yet (e.g. "josh", "song of so") — navigate to ch 1
+    if (!/\d/.test(raw)) {
+      const bookName = resolveBookName(raw);
+      if (bookName) {
+        navigateToParsed({ book: bookName, chapter: 1, verse: null });
+        return;
+      }
     }
 
     // Fallback: debounced AI search for phrases/stories
@@ -3039,6 +3169,7 @@ document.querySelectorAll('.menu-item').forEach((item, index) => {
     }
 
     setTimeout(() => lucide.createIcons(), 100);
+    if (item.dataset.tab) maybeAutoFireTabTour(item.dataset.tab);
   });
 });
 
@@ -4218,7 +4349,7 @@ function renderScheduleItems() {
       ${isActive ? '<span style="font-size: 10px; background: linear-gradient(135deg, #a78bfa, #ec4899); color: #fff; padding: 3px 7px; border-radius: 8px; font-weight: 700; flex-shrink: 0;">LIVE</span>' : ''}
       <div style="display: flex; gap: 5px; flex-shrink: 0;">
         <button id="editBtn_${index}" onclick="event.stopPropagation(); editScheduleItem(${index})" title="Edit item" style="background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.3); color: #a78bfa; width: 26px; height: 26px; border-radius: 5px; cursor: pointer; font-size: 12px; opacity: 0; transition: opacity 0.15s; pointer-events: none;">✏</button>
-        <button onclick="event.stopPropagation(); editItemTime(${index})" title="Set time" style="background: rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.3); color: #06b6d4; width: 26px; height: 26px; border-radius: 5px; cursor: pointer; font-size: 11px;">⏰</button>
+        <button class="item-timer-btn" onclick="event.stopPropagation(); editItemTime(${index})" title="Set time" style="background: rgba(6,182,212,0.15); border: 1px solid rgba(6,182,212,0.3); color: #06b6d4; width: 26px; height: 26px; border-radius: 5px; cursor: pointer; font-size: 11px;">⏰</button>
         <button onclick="event.stopPropagation(); removeScheduleItem(${index})" title="Remove" style="background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: #ef4444; width: 26px; height: 26px; border-radius: 5px; cursor: pointer; font-size: 11px;">✕</button>
       </div>
     `;
@@ -4468,7 +4599,7 @@ function displayScheduleItem() {
     } else {
       // Sequential mode: step 0 = prayer text, step 1 = linked verse (timer preserved)
       if (prayerDisplayStep === 0) {
-        ipcRenderer.send('display-lyrics', { title: item.title, author: '', lyrics: item.content.text || item.title, richText: true, fontSize: scheduleFontSize });
+        ipcRenderer.send('display-lyrics', { title: item.title, author: '', lyrics: item.content.text || item.title, richText: true, fontSize: scheduleFontSize, badgeType: 'prayer' });
         prayerDisplayStep = 1;
         if (item.timestamp_label) {
           if (isClockTime(item.timestamp_label)) ipcRenderer.send('start-countdown', { endTime: item.timestamp_label });
@@ -4476,7 +4607,7 @@ function displayScheduleItem() {
         } else ipcRenderer.send('stop-countdown');
       } else {
         const lv = item.content?.linkedVerse;
-        if (lv) ipcRenderer.send('display-verse', { reference: lv.reference, text: lv.text, translation: lv.translation });
+        if (lv) ipcRenderer.send('display-verse', { reference: lv.reference, text: lv.text, translation: lv.translation, badgeType: 'prayer' });
         prayerDisplayStep = 0;
         // Timer intentionally not touched — persists from prayer slide
       }
@@ -5721,7 +5852,7 @@ async function selectItemType(type) {
             style="flex: 1; padding: 10px; background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.3); border-radius: 8px; color: #fff; font-size: 14px; outline: none;"
             onkeypress="if(event.key==='Enter') searchBibleForSchedule()">
           <select id="bibleSchTrans" style="padding: 10px; background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.3); border-radius: 8px; color: #fff; font-size: 13px; outline: none;">
-            <option value="kjv">KJV</option><option value="niv">NIV</option><option value="nkjv">NKJV</option><option value="esv">ESV</option>
+            <option value="kjv">KJV</option><option value="asv">ASV</option><option value="web">WEB</option><option value="ylt">YLT</option><option value="darby">Darby</option><option value="bbe">BBE</option><option value="esv">ESV</option><option value="nlt">NLT</option>
           </select>
           <button onclick="searchBibleForSchedule()" style="padding: 10px 14px; background: rgba(6,182,212,0.2); border: 1px solid rgba(6,182,212,0.4); border-radius: 8px; color: #06b6d4; cursor: pointer; font-weight: 600; white-space: nowrap;">Search</button>
         </div>
@@ -5823,7 +5954,7 @@ async function selectItemType(type) {
               style="flex: 1; padding: 9px; background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.3); border-radius: 8px; color: #fff; font-size: 13px; outline: none;"
               onkeypress="if(event.key==='Enter') searchLinkedVerse()">
             <select id="prayerVerseTrans" style="padding: 9px; background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.3); border-radius: 8px; color: #fff; font-size: 12px; outline: none;">
-              <option value="kjv">KJV</option><option value="niv">NIV</option><option value="nkjv">NKJV</option><option value="esv">ESV</option>
+              <option value="kjv">KJV</option><option value="asv">ASV</option><option value="web">WEB</option><option value="ylt">YLT</option><option value="darby">Darby</option><option value="bbe">BBE</option><option value="esv">ESV</option><option value="nlt">NLT</option>
             </select>
             <button onclick="searchLinkedVerse()" style="padding: 9px 13px; background: rgba(6,182,212,0.2); border: 1px solid rgba(6,182,212,0.4); border-radius: 8px; color: #06b6d4; cursor: pointer; font-weight: 600;">Search</button>
           </div>
@@ -6038,9 +6169,8 @@ async function searchLinkedVerse() {
   try {
     const parsed = parseBibleRef(query);
     const apiQuery = parsed ? `${parsed.book} ${parsed.chapter}${parsed.verse ? ':' + parsed.verse : ''}` : query;
-    const res  = await fetch(`https://bible-api.com/${encodeURIComponent(apiQuery)}?translation=${trans}`);
-    const data = await res.json();
-    if (!data.text && !data.verses) throw new Error('Not found');
+    const data = await ipcRenderer.invoke('fetch-bible-passage', { query: apiQuery, translation: trans });
+    if (!data.success) throw new Error(data.error || 'Not found');
     const reference = data.reference || query;
     const text = (data.text || data.verses[0]?.text || '').trim().replace(/\n/g, ' ');
     resultEl.innerHTML = `
@@ -6071,9 +6201,8 @@ async function searchBibleForSchedule() {
   try {
     const parsed = parseBibleRef(query);
     const apiQuery = parsed ? `${parsed.book} ${parsed.chapter}${parsed.verse ? ':' + parsed.verse : ''}` : query;
-    const res  = await fetch(`https://bible-api.com/${encodeURIComponent(apiQuery)}?translation=${trans}`);
-    const data = await res.json();
-    if (!data.text && !data.verses) throw new Error('Not found');
+    const data = await ipcRenderer.invoke('fetch-bible-passage', { query: apiQuery, translation: trans });
+    if (!data.success) throw new Error(data.error || 'Not found');
 
     const reference = data.reference || query;
     const verses = data.verses || [];
@@ -8239,6 +8368,18 @@ function renderScreenCards() {
               <div style="position: absolute; top: 3px; left: ${config.chroma_key ? '23px' : '3px'}; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: left 0.2s;"></div>
             </div>
           </div>
+          <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(167,139,250,0.1);">
+            <label style="color: #6b7280; font-size: 11px; font-weight: 700; letter-spacing: 1px; display: block; margin-bottom: 6px;">CONTENT BADGE POSITION</label>
+            <select onchange="setBadgePosition(${config.screen_index}, this.value)" style="
+              width: 100%; padding: 8px 10px; background: #0f0f1e; border: 1px solid rgba(167,139,250,0.2);
+              border-radius: 6px; color: #fff; font-size: 13px; outline: none;">
+              <option value="top-left" ${(!config.badge_position || config.badge_position === 'top-left') ? 'selected' : ''}>Top Left</option>
+              <option value="top-right" ${config.badge_position === 'top-right' ? 'selected' : ''}>Top Right</option>
+              <option value="bottom-right" ${config.badge_position === 'bottom-right' ? 'selected' : ''}>Bottom Right</option>
+              <option value="bottom-left" ${config.badge_position === 'bottom-left' ? 'selected' : ''}>Bottom Left</option>
+            </select>
+            <div style="color: #6b7280; font-size: 11px; margin-top: 6px;">Where the Bible/song/prayer icon badge shows on this screen. Bottom Left can overlap the "Up Next" indicator on Stage/Full profiles.</div>
+          </div>
         ` : `
           <div style="color: #4b5563; font-size: 13px; text-align: center; padding: 4px 0;">Toggle on to activate this screen</div>
         `}
@@ -8298,6 +8439,16 @@ async function toggleScreenChroma(screenIndex) {
   config.chroma_key = !config.chroma_key;
   await ipcRenderer.invoke('save-screen-config', config);
   // Reload the live window immediately so the background swap takes effect now
+  if (config.enabled) ipcRenderer.send('reload-screen', { screenIndex });
+  renderScreenCards();
+}
+
+async function setBadgePosition(screenIndex, position) {
+  const config = screenConfigsLocal.find(c => c.screen_index === screenIndex);
+  if (!config) return;
+  config.badge_position = position;
+  await ipcRenderer.invoke('save-screen-config', config);
+  // Reload the live window immediately so the new position takes effect now
   if (config.enabled) ipcRenderer.send('reload-screen', { screenIndex });
   renderScreenCards();
 }
@@ -8858,6 +9009,231 @@ async function importSong(btn, title, artist) {
     alert('Could not fetch lyrics: ' + err.message);
   }
 }
+
+// ============================================================
+// GUIDED TOUR — first-launch walkthrough + per-tab "?" help
+// ============================================================
+
+const TOUR_SEEN_KEY = 'tourSeen';
+function getTourSeen() {
+  try { return JSON.parse(localStorage.getItem(TOUR_SEEN_KEY) || '{}'); } catch { return {}; }
+}
+function markTourSeen(key) {
+  const seen = getTourSeen();
+  seen[key] = true;
+  try { localStorage.setItem(TOUR_SEEN_KEY, JSON.stringify(seen)); } catch {}
+}
+
+const WELCOME_TOUR_STEPS = [
+  { target: null, eyebrow: 'Welcome', title: "Let's set up your first service", body: "A 30-second look at where everything lives — skip any time, and every tab also has its own ? button if you want a closer look later." },
+  { target: '.menu-item[data-tab="bible"]', eyebrow: 'Step 1', title: 'Bible', body: 'Search any verse, chapter, or reference and put it on screen instantly — across nine translations including ESV and NLT.' },
+  { target: '.menu-item[data-tab="songs"]', eyebrow: 'Step 2', title: 'Songs', body: 'Import a song and its lyrics are automatically split into slide sections, ready to display.' },
+  { target: '.menu-item[data-tab="sermon-notes"]', eyebrow: 'Step 3', title: 'AI Sermon Notes', body: 'Listens while the pastor speaks and can detect — and even auto-display — scripture references in real time.' },
+  { target: '.menu-item[data-tab="schedule"]', eyebrow: 'Step 4', title: 'Schedule', body: "Line up everything for the service — songs, verses, announcements, even a countdown timer — in the order you'll actually run it." },
+  { target: '.menu-item[data-tab="screens"]', eyebrow: 'Step 5', title: 'Screens', body: 'Your video switcher and projector output — including chroma key for lower-third overlays.' },
+  { target: '#goLiveBtn', eyebrow: 'Step 6', title: 'Go Live', body: "When you're ready, this sends whatever's on screen to your projector or stream in real time." },
+  { target: null, eyebrow: "You're set", title: "That's the whole app", body: "Jump in — your first service is waiting. Come back to this any time from Settings.", finish: true },
+];
+
+const TAB_TOURS = {
+  bible: [
+    { target: '#translation', title: 'Pick a translation', body: 'Choose from nine translations, including ESV and NLT, before you search.' },
+    { target: '#searchInput', title: 'Search any way you like', body: 'Type a shorthand reference like "jn 3:16", just the first 3 letters of a book like "gen 1", or the full name — then press Enter.' },
+    { target: '#preview', title: 'Check the preview', body: 'The matched verse loads here first so you can confirm it before it goes live.' },
+    { target: '#displayBtn', title: 'Send it to screen', body: 'This puts the verse on your projector or stream instantly.' },
+  ],
+  themes: [
+    { target: '[onclick="createNewTheme()"]', title: 'Start a theme', body: 'Create a new theme, or click an existing one in the list to edit it.' },
+    { target: '#themeEditor', title: 'Set the look', body: 'Name it, choose Bible or Songs, upload a background image, and pick your text color.' },
+    { target: '#applyThemeBtn', title: 'Apply it', body: "This makes the theme active for its type — every verse or song slide will use it." },
+  ],
+  backgrounds: [
+    { target: '#backgroundsContent label.btn-secondary', title: 'Upload an image', body: 'Add any image from your computer to build your background gallery.' },
+    { target: '#backgroundsList', title: 'Pick from your gallery', body: 'Click any thumbnail to select it and load it into the preview.' },
+    { target: '[onclick="displaySelectedBg()"]', title: 'Put it to use', body: '"Display on Projector" sends it live now; "Set as Logo" saves it for a quick Ctrl+L logo cut later.' },
+  ],
+  schedule: [
+    { target: '[onclick="createNewSchedule()"]', title: 'Start a schedule', body: 'One schedule per service — name it and you’re ready to build the order.' },
+    { target: '[onclick="openAddItemModal()"]', title: 'Add items', body: 'Choose a type — Bible, song, prayer, announcement, logo, or a custom slide — and fill in the details.' },
+    { target: '#scheduleItemsList', title: 'Drag to reorder', body: 'This is the actual run order for the service. Drag any item to rearrange it.' },
+    { target: '.item-timer-btn', title: 'Set a countdown timer', body: 'Tap the clock on any item to give it a countdown — it shows on the item and overlays on the projector, in the position and mode you set below in Settings.' },
+    { target: '#scheduleDisplayBtn', title: 'Run the service', body: 'Click an item, then Display — or use Space to advance and display the next item in one press.' },
+  ],
+  songs: [
+    { target: '[onclick="openSongImport()"]', title: 'Find a song', body: 'Search by title or artist — this finds the song and pulls its metadata automatically.' },
+    { target: '#songsList', title: 'Lyrics become slides', body: 'Importing fetches the lyrics and splits them into verse/chorus slide sections automatically. You can also add a song fully by hand with "+ New".' },
+    { target: '[onclick="displayLyrics()"]', title: 'Display a section', body: 'Click any section, then Display Lyrics to put it on screen.' },
+  ],
+  'sermon-notes': [
+    { target: '#liveModeTab', title: 'Switch to Live Mode', body: 'Prep Mode is for writing notes ahead of time; Live Mode listens during the actual sermon.' },
+    { target: '#micBtn', title: 'Start listening', body: 'Tap the mic to begin. Speech is transcribed continuously while it’s live.' },
+    { target: '#autoModeToggle', title: 'Suggest vs. Auto', body: 'Suggest shows a confirmation banner before displaying a detected verse; Auto puts it on screen immediately, no tap needed.' },
+    { target: '#suggestBanner', title: 'When a verse is caught', body: 'As soon as a reference is spoken, it’s detected and offered here — one tap sends it live.' },
+  ],
+};
+
+const TAB_TOUR_LABELS = {
+  bible: 'Bible', themes: 'Themes', backgrounds: 'Backgrounds',
+  schedule: 'Schedule', songs: 'Songs', 'sermon-notes': 'AI Sermon Notes',
+};
+
+let _tourSteps = null;
+let _tourStep = 0;
+let _tourStorageKey = null;
+const _tourLayer = document.getElementById('tourLayer');
+
+function runTour(steps, opts) {
+  const visible = steps.filter((s) => !s.target || document.querySelector(s.target));
+  if (!visible.length) return;
+  _tourSteps = visible;
+  _tourSteps._label = (opts && opts.label) || null;
+  _tourStorageKey = (opts && opts.storageKey) || null;
+  _tourStep = 0;
+  renderTourStep();
+}
+
+function startWelcomeTour() {
+  runTour(WELCOME_TOUR_STEPS, { storageKey: 'welcome' });
+}
+
+function startTabTour(tabKey) {
+  const steps = TAB_TOURS[tabKey];
+  if (!steps) return;
+  runTour(steps, { label: TAB_TOUR_LABELS[tabKey], storageKey: 'tab_' + tabKey });
+}
+
+function renderTourStep() {
+  _tourLayer.innerHTML = '';
+  const steps = _tourSteps;
+  const s = steps[_tourStep];
+  const scrim = document.createElement('div');
+  scrim.className = 'tour-scrim';
+  _tourLayer.appendChild(scrim);
+
+  const targetEl = s.target ? document.querySelector(s.target) : null;
+  const card = document.createElement('div');
+  card.className = 'tour-card' + (targetEl ? '' : ' centered');
+
+  let cardTop, cardLeft;
+  const cardWidth = targetEl ? 300 : 340;
+
+  if (targetEl) {
+    const r = targetEl.getBoundingClientRect();
+    const hole = document.createElement('div');
+    hole.className = 'tour-hole';
+    const pad = 8;
+    hole.style.top = (r.top - pad) + 'px';
+    hole.style.left = (r.left - pad) + 'px';
+    hole.style.width = (r.width + pad * 2) + 'px';
+    hole.style.height = (r.height + pad * 2) + 'px';
+    _tourLayer.appendChild(hole);
+
+    cardTop = Math.min(Math.max(r.top - 10, 80), window.innerHeight - 210);
+    cardLeft = r.right + 26;
+    if (cardLeft + cardWidth > window.innerWidth - 20) {
+      cardLeft = Math.max(r.left, 20);
+      cardTop = Math.min(r.bottom + 20, window.innerHeight - 190);
+    }
+
+    const arrow = document.createElement('div');
+    arrow.className = 'tour-arrow';
+    arrow.style.top = (Math.max(r.top - cardTop, 18)) + 'px';
+    arrow.style.left = (cardLeft > r.right ? -6 : Math.min(cardWidth / 2 - 6, 40)) + 'px';
+    card.appendChild(arrow);
+  } else {
+    cardTop = window.innerHeight / 2 - 110;
+    cardLeft = window.innerWidth / 2 - cardWidth / 2;
+  }
+
+  card.style.top = cardTop + 'px';
+  card.style.left = cardLeft + 'px';
+
+  const eyebrowText = s.eyebrow || steps._label || 'Guide';
+  const eyebrow = document.createElement('div');
+  eyebrow.className = 'tour-eyebrow';
+  eyebrow.innerHTML = eyebrowText + '<span class="dot"></span>' + (_tourStep + 1) + ' / ' + steps.length;
+  card.appendChild(eyebrow);
+
+  const title = document.createElement('div');
+  title.className = 'tour-title';
+  title.textContent = s.title;
+  card.appendChild(title);
+
+  const body = document.createElement('div');
+  body.className = 'tour-body';
+  body.textContent = s.body;
+  card.appendChild(body);
+
+  const footer = document.createElement('div');
+  footer.className = 'tour-footer';
+
+  const dots = document.createElement('div');
+  dots.className = 'tour-dots';
+  steps.forEach((_, i) => {
+    const d = document.createElement('span');
+    if (i === _tourStep) d.className = 'on';
+    dots.appendChild(d);
+  });
+  footer.appendChild(dots);
+
+  const actions = document.createElement('div');
+  actions.className = 'tour-actions';
+
+  if (!s.finish) {
+    const skip = document.createElement('button');
+    skip.className = 'tour-btn-skip';
+    skip.textContent = 'Skip';
+    skip.onclick = endTour;
+    actions.appendChild(skip);
+  }
+
+  if (_tourStep > 0) {
+    const back = document.createElement('button');
+    back.className = 'tour-btn-back';
+    back.textContent = '←';
+    back.onclick = () => { _tourStep--; renderTourStep(); };
+    actions.appendChild(back);
+  }
+
+  const next = document.createElement('button');
+  next.className = 'tour-btn-next';
+  next.textContent = s.finish ? 'Got it' : 'Next';
+  next.onclick = () => {
+    if (_tourStep >= steps.length - 1) { endTour(); return; }
+    _tourStep++;
+    renderTourStep();
+  };
+  actions.appendChild(next);
+
+  footer.appendChild(actions);
+  card.appendChild(footer);
+  _tourLayer.appendChild(card);
+}
+
+function endTour() {
+  _tourLayer.innerHTML = '';
+  if (_tourStorageKey) markTourSeen(_tourStorageKey);
+  _tourSteps = null;
+  _tourStorageKey = null;
+}
+
+window.addEventListener('resize', () => { if (_tourSteps) renderTourStep(); });
+
+// Auto-fire each tab's tour the first time it's opened, and the welcome
+// tour once on first-ever launch. Both are also always reachable manually
+// (the persistent ? button per tab, and "Replay Welcome Tour" in Settings).
+function maybeAutoFireTabTour(tabKey) {
+  if (!TAB_TOURS[tabKey]) return;
+  const seen = getTourSeen();
+  if (seen['tab_' + tabKey]) return;
+  setTimeout(() => startTabTour(tabKey), 400);
+}
+
+setTimeout(() => {
+  const seen = getTourSeen();
+  if (!seen.welcome) startWelcomeTour();
+  else maybeAutoFireTabTour('bible'); // Bible is the tab visible by default on launch
+}, 700);
 
 </script>
 

@@ -209,6 +209,35 @@
       font-weight: 900;
     }
 
+    /* Content-type badge -- shows which kind of content (verse/lyrics/prayer)
+       is currently live, matching each type's own accent color. */
+    .content-badge {
+      display: none;
+      position: fixed;
+      width: 90px;
+      height: 90px;
+      border-radius: 50%;
+      align-items: center;
+      justify-content: center;
+      border: 2px solid rgba(255, 255, 255, 0.25);
+      z-index: 20;
+      animation: fadeIn 0.6s ease-out both;
+    }
+
+    /* Position variants -- set via the badgePosition query param (Settings >
+       Screens, per screen), default top-left if unset. */
+    .content-badge.badge-top-left { top: 40px; left: 40px; }
+    .content-badge.badge-top-right { top: 40px; right: 40px; }
+    .content-badge.badge-bottom-left { bottom: 40px; left: 40px; }
+    .content-badge.badge-bottom-right { bottom: 40px; right: 40px; }
+
+    .content-badge img {
+      width: 58%;
+      height: 58%;
+      object-fit: contain;
+      filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.35));
+    }
+
     /* Multi-verse indicator */
     .verse-counter {
       position: fixed;
@@ -250,6 +279,11 @@
       <div class="verse-text" id="verseText"></div>
       <div class="verse-translation" id="verseTrans"></div>
     </div>
+  </div>
+
+  <!-- Content-type badge -- which of Bible/song/prayer is currently live -->
+  <div class="content-badge" id="contentBadge">
+    <img id="contentBadgeIcon" src="" alt="">
   </div>
 
   <!-- Full-screen background image overlay — fills edge to edge, no bars, no cropping -->
@@ -339,6 +373,7 @@
   const displayProfile = urlParams.get('profile') || 'clean';
   const screenIndex = parseInt(urlParams.get('screenIndex') || '1');
   if (urlParams.get('chroma') === '1') document.body.classList.add('chroma-mode');
+  const badgePosition = urlParams.get('badgePosition') || 'top-left';
 
   function applyProfile() {
     const isStage = displayProfile === 'stage' || displayProfile === 'full';
@@ -373,6 +408,29 @@
   const verseTrans = document.getElementById('verseTrans');
   const verseCounter = document.getElementById('verseCounter');
   const prayerCombinedScreen = document.getElementById('prayerCombinedScreen');
+  const contentBadge = document.getElementById('contentBadge');
+  const contentBadgeIcon = document.getElementById('contentBadgeIcon');
+
+  const CONTENT_BADGE_STYLES = {
+    verse: { src: '../assets/badges/bible-badge.png', background: 'rgba(56, 143, 255, 0.28)', glow: 'rgba(56, 143, 255, 0.55)' },
+    lyrics: { src: '../assets/badges/song-badge.png', background: 'rgba(255, 193, 7, 0.28)', glow: 'rgba(255, 193, 7, 0.55)' },
+    prayer: { src: '../assets/badges/prayer-badge.png', background: 'rgba(196, 181, 253, 0.28)', glow: 'rgba(196, 181, 253, 0.55)' },
+  };
+
+  contentBadge.classList.add(`badge-${badgePosition}`);
+
+  function showContentBadge(type) {
+    const style = CONTENT_BADGE_STYLES[type];
+    if (!style) return;
+    contentBadgeIcon.src = style.src;
+    contentBadge.style.background = style.background;
+    contentBadge.style.boxShadow = `0 0 22px ${style.glow}, inset 0 0 18px ${style.glow}`;
+    contentBadge.style.display = 'flex';
+  }
+
+  function hideContentBadge() {
+    contentBadge.style.display = 'none';
+  }
 
   let currentVerseIndex = 0;
   let totalVerses = 1;
@@ -396,6 +454,9 @@
     welcomeScreen.style.display = 'none';
     prayerCombinedScreen.classList.remove('active');
     verseScreen.classList.add('active');
+    // A prayer's sequential-mode linked-verse step reuses this same renderer,
+    // so the sender can override which badge actually applies.
+    showContentBadge(verse.badgeType || 'verse');
 
     if (!currentDisplayTheme) document.body.style.backgroundImage = '';
 
@@ -440,9 +501,12 @@ ipcRenderer.on('show-lyrics', (event, lyricsData) => {
   welcomeScreen.style.display = 'none';
   prayerCombinedScreen.classList.remove('active');
   verseScreen.classList.add('active');
+  // A prayer's sequential-mode text step reuses this same renderer, so the
+  // sender can override which badge actually applies.
+  showContentBadge(lyricsData.badgeType || 'lyrics');
 
   if (!currentDisplayTheme) document.body.style.backgroundImage = '';
-  
+
   // Format: "SONG - AUTHOR"
   const displayTitle = lyricsData.author
     ? `${lyricsData.title} - ${lyricsData.author}`
@@ -485,6 +549,7 @@ ipcRenderer.on('show-prayer-combined', (event, data) => {
   welcomeScreen.style.display = 'none';
   verseScreen.classList.remove('active');
   prayerCombinedScreen.classList.add('active');
+  showContentBadge('prayer');
 
   if (!currentDisplayTheme) document.body.style.backgroundImage = '';
 
@@ -583,7 +648,8 @@ ipcRenderer.on('show-background', (event, imageUrl) => {
   welcomeScreen.style.display = 'none';
   verseScreen.classList.remove('active');
   verseCounter.style.display = 'none';
-  
+  hideContentBadge();
+
   // Use dedicated overlay so image fills edge to edge with no bars and no cropping
   const bgOverlay = document.getElementById('bgImageOverlay');
   const bgImg = document.getElementById('bgImageEl');
@@ -654,6 +720,7 @@ function applyThemeColors(themeData) {
 
   // Listen for clear screen
   ipcRenderer.on('show-pptx-slide', (event, slide) => {
+    hideContentBadge();
     const overlay = document.getElementById('pptxOverlay');
 
     // Image mode (LibreOffice): show the exact rendered slide, centered on black
@@ -725,6 +792,7 @@ function applyThemeColors(themeData) {
   }
 
   ipcRenderer.on('show-slide-deck-page', (event, page) => {
+    hideContentBadge();
     const overlay = document.getElementById('slideDeckOverlay');
     const bg = page.background || {};
 
@@ -757,6 +825,7 @@ function applyThemeColors(themeData) {
   verseScreen.classList.remove('active');
   prayerCombinedScreen.classList.remove('active');
   verseCounter.style.display = 'none';
+  hideContentBadge();
   stopCountdown();
 
   // Clear all overlays
