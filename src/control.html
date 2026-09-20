@@ -1116,6 +1116,9 @@
           <button class="btn btn-display" onclick="displayVerse()" id="displayBtn" disabled>
             🚀 Display on Screen
           </button>
+          <button class="btn btn-secondary" onclick="displayVerseAsLowerThird()" id="verseLowerThirdBtn" disabled title="Show as a lower-third banner instead of full screen — for compositing over a chroma key feed">
+            🎬 Lower Third
+          </button>
           <button class="btn btn-secondary" onclick="clearScreen()">
             🧹 Clear Screen
           </button>
@@ -1175,6 +1178,9 @@
     <div class="action-btns">
       <button class="btn btn-display" onclick="displayLyrics()">
         🚀 Display Lyrics
+      </button>
+      <button class="btn btn-secondary" onclick="displaySongAsLowerThird()" title="Show as a lower-third banner instead of full screen — for compositing over a chroma key feed">
+        🎬 Lower Third
       </button>
       <button class="btn btn-secondary" onclick="clearScreen()">
         🧹 Clear Screen
@@ -2507,6 +2513,7 @@
     btn.style.color = multiSelectMode ? '#a78bfa' : '#9ca3af';
     document.getElementById('preview').innerHTML = '<div class="preview-empty">Click a verse to preview</div>';
     document.getElementById('displayBtn').disabled = true;
+    document.getElementById('verseLowerThirdBtn').disabled = true;
     document.getElementById('copyBtn').disabled = true;
     renderVerses();
   }
@@ -2516,6 +2523,7 @@
     if (indices.length === 0) {
       document.getElementById('preview').innerHTML = '<div class="preview-empty">Click verses to add them, then Display</div>';
       document.getElementById('displayBtn').disabled = true;
+      document.getElementById('verseLowerThirdBtn').disabled = true;
       document.getElementById('copyBtn').disabled = true;
       return;
     }
@@ -2526,6 +2534,7 @@
     `).join('<div style="height:10px;"></div>') + `<div class="preview-trans">(${verses[0].trans})</div>`;
     document.getElementById('displayBtn').disabled = false;
     document.getElementById('copyBtn').disabled = false;
+    document.getElementById('verseLowerThirdBtn').disabled = true; // lower-third only supports a single verse
   }
 
   function toggleGroupByLength() {
@@ -2631,6 +2640,7 @@
     // Update preview
     document.getElementById('preview').innerHTML = '<div class="preview-empty">Click a verse to preview</div>';
     document.getElementById('displayBtn').disabled = true;
+    document.getElementById('verseLowerThirdBtn').disabled = true;
     document.getElementById('copyBtn').disabled = true;
     
     document.getElementById('prevBtn').disabled = currentChapter === 1;
@@ -2744,19 +2754,30 @@
     renderVerses();
 
     const v = allVerses[i];
-    document.getElementById('preview').innerHTML = `
+    document.getElementById('preview').innerHTML = _lowerThirdActive
+      ? lowerThirdPreviewHtml(v.text.trim(), v.ref)
+      : `
       <div class="preview-ref">${v.ref}</div>
       <div class="preview-text">${v.text.trim()}</div>
       <div class="preview-trans">(${v.trans})</div>
     `;
     document.getElementById('displayBtn').disabled = false;
+    document.getElementById('verseLowerThirdBtn').disabled = false;
     document.getElementById('copyBtn').disabled = false;
 
-    // Auto-display on screen immediately (EasyWorship style)
-    ipcRenderer.send('display-verse', { reference: v.ref, text: v.text, translation: v.trans });
+    // Auto-display immediately (EasyWorship style) -- sticky lower-third mode
+    // (engaged via the 🎬 Lower Third button) keeps routing new verses to the
+    // banner instead of full screen, until Display on Screen or Clear Lower
+    // Third explicitly exits it.
+    if (_lowerThirdActive) {
+      showAsLowerThird(v.text, v.ref, '');
+    } else {
+      ipcRenderer.send('display-verse', { reference: v.ref, text: v.text, translation: v.trans });
+    }
   }
 
   function displayVerse() {
+    _lowerThirdActive = false; // explicit full-screen display exits sticky lower-third mode
     if (multiSelectMode) {
       const indices = [...selectedVerseSet].sort((a, b) => a - b);
       if (!indices.length) return;
@@ -2772,6 +2793,15 @@
     const v = allVerses[selectedVerse];
     console.log('📺 Displaying:', v.ref);
     ipcRenderer.send('display-verse', { reference: v.ref, text: v.text, translation: v.trans });
+  }
+
+  // Reuses the same lower-third overlay built for AI Sermon Notes' key
+  // points -- point/scripture map naturally onto verse text/reference.
+  function displayVerseAsLowerThird() {
+    if (multiSelectMode || selectedVerse === null) return;
+    const v = allVerses[selectedVerse];
+    document.getElementById('preview').innerHTML = lowerThirdPreviewHtml(v.text.trim(), v.ref);
+    showAsLowerThird(v.text, v.ref, '');
   }
 
   function clearScreen() {
@@ -3418,7 +3448,8 @@ function displaySelectedSection() {
     alert('Please select a section first!');
     return;
   }
-  
+  _lowerThirdActive = false; // explicit full-screen display exits sticky lower-third mode
+
   const section = currentSong.sections[selectedSection];
   ipcRenderer.send('display-lyrics', {
     title: currentSong.title,
@@ -3455,7 +3486,13 @@ function selectSection(index) {
     intro: '🎬',
     outro: '🎭'
   }[section.type] || '📝';
-  
+
+  if (_lowerThirdActive) {
+    preview.innerHTML = lowerThirdPreviewHtml(section.lyrics || 'No lyrics', currentSong.title || '');
+    showAsLowerThird(section.lyrics, '', currentSong.title || '');
+    return;
+  }
+
   preview.innerHTML = `
     <div style="height: 100%; display: flex; flex-direction: column;">
       <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 15px; padding: 15px; background: rgba(45,45,74,0.4); border-radius: 8px;">
@@ -3467,17 +3504,17 @@ function selectSection(index) {
       </div>
       <div style="
         flex: 1;
-        color: #e5e7eb; 
-        font-size: ${currentLyricsFontSize}px; 
-        line-height: 1.6; 
-        white-space: pre-wrap; 
+        color: #e5e7eb;
+        font-size: ${currentLyricsFontSize}px;
+        line-height: 1.6;
+        white-space: pre-wrap;
         word-wrap: break-word;
         overflow-wrap: break-word;
         overflow-y: auto;
         overflow-x: hidden;
-        background: rgba(26,26,46,0.8); 
-        padding: 20px; 
-        border-radius: 8px; 
+        background: rgba(26,26,46,0.8);
+        padding: 20px;
+        border-radius: 8px;
         border: 1px solid rgba(167,139,250,0.2);
       ">
 ${section.lyrics || 'No lyrics'}
@@ -3602,6 +3639,15 @@ async function deleteSong() {
 
 function displayLyrics() {
   displaySelectedSection();
+}
+
+// Same lower-third overlay as Bible verses and AI Sermon Notes' key points --
+// point/scripture map onto the lyrics text/song title here.
+function displaySongAsLowerThird() {
+  if (selectedSection === null || !currentSong) { alert('Please select a section first!'); return; }
+  const section = currentSong.sections[selectedSection];
+  document.getElementById('lyricsPreview').innerHTML = lowerThirdPreviewHtml(section.lyrics || 'No lyrics', currentSong.title || '');
+  showAsLowerThird(section.lyrics, '', currentSong.title || '');
 }
 
 // ============================================
@@ -6737,6 +6783,18 @@ async function addTeachingPointToSchedule(point, scripture) {
   if (result.success) { scheduleItems.push(result.item); }
 }
 
+// Mimics the actual #lowerThird banner styling from display.html so the
+// operator's preview matches what's really going out, not the full-screen look.
+function lowerThirdPreviewHtml(mainText, tag) {
+  return `
+    <div style="background:linear-gradient(to right, rgba(0,0,0,0.92) 0%, rgba(15,8,30,0.96) 40%, rgba(15,8,30,0.96) 60%, rgba(0,0,0,0.92) 100%); border-top:3px solid #ec4899; border-radius:6px; padding:14px 18px; display:flex; flex-direction:column; gap:4px;">
+      <div style="color:#fff; font-size:15px; font-weight:800; line-height:1.3;">${mainText}</div>
+      ${tag ? `<div style="color:#FFD700; font-size:11px; font-weight:700; letter-spacing:1px;">${tag}</div>` : ''}
+    </div>
+    <div style="color:#6b7280; font-size:10px; text-transform:uppercase; letter-spacing:1px; margin-top:6px;">🎬 Showing as lower third</div>
+  `;
+}
+
 async function showAsLowerThird(point, scripture, pastorName) {
   // Get pastor name from settings if not passed
   if (!pastorName) {
@@ -9134,6 +9192,11 @@ function renderTourStep() {
       cardLeft = Math.max(r.left, 20);
       cardTop = Math.min(r.bottom + 20, window.innerHeight - 190);
     }
+    // Clamp into the viewport either way -- a target near the screen edge
+    // (e.g. the Go Live button, pinned to the top-right) can overflow even
+    // the fallback "below the button" placement above, cutting off the
+    // card's right side (and its Next button) regardless of window size.
+    cardLeft = Math.min(Math.max(cardLeft, 20), window.innerWidth - cardWidth - 20);
 
     const arrow = document.createElement('div');
     arrow.className = 'tour-arrow';

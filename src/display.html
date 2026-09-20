@@ -52,6 +52,13 @@
        overlay and aren't suppressed by this. */
     body.chroma-mode { background: #00FF00 !important; }
     body.chroma-mode #bgImageOverlay { display: none !important; }
+    /* Stage clock and "up next" are in-venue operator furniture (confidence-monitor
+       info), shown whenever the screen's profile is Stage/Full -- independent of
+       chroma key. A chroma feed is meant to be composited into a broadcast/stream,
+       where burning in a clock or the next queued item makes no sense, so suppress
+       both regardless of which profile is picked for this screen. */
+    body.chroma-mode #stageClock { display: none !important; }
+    body.chroma-mode #nextItemIndicator { display: none !important; }
 
     #content {
       animation: fadeIn 0.8s ease-in-out;
@@ -364,6 +371,14 @@
           el.removeAttribute(attr.name);
         }
       });
+      // The editor's own toolbar never sets font-size (only bold/underline/
+      // italic/font-family), so any inline font-size here came in from a
+      // paste (Word, Google Docs, etc). Left alone, it overrides the
+      // projector's font-size control -- a child's explicit inline style
+      // always wins over a size set on its parent. Legacy <font size> is
+      // the same problem via a different attribute.
+      el.style.removeProperty('font-size');
+      if (el.tagName === 'FONT') el.removeAttribute('size');
     });
     return div.innerHTML;
   }
@@ -449,6 +464,7 @@
   // Listen for verse display
   ipcRenderer.on('show-verse', (event, verse) => {
     console.log('📺 Received verse:', verse);
+    hideAllOtherOverlays();
     resetInlineStyles();
 
     welcomeScreen.style.display = 'none';
@@ -496,6 +512,7 @@
   });
 ipcRenderer.on('show-lyrics', (event, lyricsData) => {
   console.log('📺 Displaying lyrics:', lyricsData);
+  hideAllOtherOverlays();
   resetInlineStyles();
 
   welcomeScreen.style.display = 'none';
@@ -544,6 +561,7 @@ ipcRenderer.on('show-lyrics', (event, lyricsData) => {
 
 ipcRenderer.on('show-prayer-combined', (event, data) => {
   console.log('🙏 Showing prayer combined:', data);
+  hideAllOtherOverlays();
   resetInlineStyles();
 
   welcomeScreen.style.display = 'none';
@@ -643,7 +661,8 @@ ipcRenderer.on('apply-theme', (event, themeData) => {
 // Display a background image fullscreen
 ipcRenderer.on('show-background', (event, imageUrl) => {
   console.log('🖼️ Showing background:', imageUrl);
-  
+  hideAllOtherOverlays();
+
   // Hide welcome and verse screens
   welcomeScreen.style.display = 'none';
   verseScreen.classList.remove('active');
@@ -689,6 +708,7 @@ function applyThemeColors(themeData) {
   // Listen for multi-verse display (with counter)
   ipcRenderer.on('show-verse-multi', (event, data) => {
     console.log('📺 Received verse:', data.verse, `(${data.current}/${data.total})`);
+    hideAllOtherOverlays();
 
     currentVerseIndex = data.current;
     totalVerses = data.total;
@@ -721,6 +741,7 @@ function applyThemeColors(themeData) {
   // Listen for clear screen
   ipcRenderer.on('show-pptx-slide', (event, slide) => {
     hideContentBadge();
+    hideAllOtherOverlays();
     const overlay = document.getElementById('pptxOverlay');
 
     // Image mode (LibreOffice): show the exact rendered slide, centered on black
@@ -793,6 +814,7 @@ function applyThemeColors(themeData) {
 
   ipcRenderer.on('show-slide-deck-page', (event, page) => {
     hideContentBadge();
+    hideAllOtherOverlays();
     const overlay = document.getElementById('slideDeckOverlay');
     const bg = page.background || {};
 
@@ -845,8 +867,45 @@ function applyThemeColors(themeData) {
   resetInlineStyles();
 });
 
+  // The lower-third banner and full-screen content are mutually exclusive --
+  // every handler that puts new full-screen content up calls this first, or
+  // a verse/lyrics display left over from before a Lower Third click stays
+  // stuck on screen underneath whatever's shown next.
+  function hideLowerThirdOverlay() {
+    const lt = document.getElementById('lowerThird');
+    if (lt) lt.style.display = 'none';
+  }
+
+  // All the full-screen display mechanisms (verse, prayer, background image,
+  // PPTX slide, slide-deck page) are separate overlay layers stacked with
+  // z-index, not swapped in and out of one shared container. Without this,
+  // e.g. a slide deck (z-index:5) stays visible and simply covers a verse
+  // shown afterwards (verse-container has no z-index, so it renders behind
+  // it) -- the verse updates in the DOM but never becomes visible. Every
+  // "show new content" handler calls this first, then shows its own layer.
+  // keepLowerThird=true is used by show-lower-third itself -- it needs to hide
+  // the full-screen verse/lyrics/etc. behind it (that content is NOT green, so
+  // on a real chroma switcher it would composite over the camera feed right
+  // alongside the banner, defeating the point of a lower third), but must not
+  // hide the very banner it's about to show.
+  function hideAllOtherOverlays(keepLowerThird) {
+    welcomeScreen.style.display = 'none';
+    verseScreen.classList.remove('active');
+    prayerCombinedScreen.classList.remove('active');
+    verseCounter.style.display = 'none';
+    hideContentBadge();
+    if (!keepLowerThird) hideLowerThirdOverlay();
+    const pptxOv = document.getElementById('pptxOverlay');
+    if (pptxOv) { pptxOv.style.display = 'none'; pptxOv.innerHTML = ''; }
+    const deckOv = document.getElementById('slideDeckOverlay');
+    if (deckOv) { deckOv.style.display = 'none'; deckOv.innerHTML = ''; deckOv.style.animation = 'none'; }
+    const bgOv = document.getElementById('bgImageOverlay');
+    if (bgOv) { bgOv.style.display = 'none'; document.getElementById('bgImageEl').src = ''; }
+  }
+
   // Lower Third handlers
   ipcRenderer.on('show-lower-third', (_event, data) => {
+    hideAllOtherOverlays(true);
     const lt = document.getElementById('lowerThird');
     const nameEl = document.getElementById('ltPastorName');
     const pointEl = document.getElementById('ltPoint');
