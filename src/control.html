@@ -4384,12 +4384,23 @@ function renderScheduleItems() {
       background: ${isActive ? 'linear-gradient(135deg, rgba(167,139,250,0.18), rgba(236,72,153,0.12))' : 'rgba(26,26,46,0.8)'};
       border: 2px solid ${isActive ? 'rgba(167,139,250,0.55)' : 'rgba(167,139,250,0.08)'};
     `;
+    // A content preview so items aren't indistinguishable generic labels
+    // ("Prayer 1", every background titled "Background Slide") -- a text
+    // snippet for prayer/custom/announcement, an actual thumbnail for
+    // backgrounds (bible/song already show a meaningful title/reference).
+    let previewLine = '';
+    if ((item.type === 'prayer' || item.type === 'custom' || item.type === 'announcement') && item.content?.text) {
+      const snippet = stripHtmlToText(item.content.text);
+      if (snippet) previewLine = `<div style="font-size:11px;color:#9ca3af;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${snippet}</div>`;
+    }
+
     div.innerHTML = `
       <div style="color: #4b5563; font-size: 14px; cursor: grab; flex-shrink: 0;">⠿</div>
-      ${item.type !== 'pptx-slide' ? `<div style="font-size: 20px; flex-shrink: 0;">${typeInfo.icon}</div>` : ''}
+      ${item.type !== 'pptx-slide' && item.type !== 'logo' ? `<div style="font-size: 20px; flex-shrink: 0;">${typeInfo.icon}</div>` : ''}
       <div style="flex: 1; min-width: 0;">
         <div style="font-size: 13px; font-weight: 600; color: ${isActive ? '#a78bfa' : '#e5e7eb'}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.title}</div>
         <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.3px;">${typeInfo.label}${item.timestamp_label ? ' · ⏱ ' + formatTimerLabel(item.timestamp_label) : ''}</div>
+        ${previewLine}
       </div>
       ${item.type === 'song' ? `<span style="font-size: 11px; color: #6b7280; flex-shrink: 0;">${expandedSongIndex === index ? '▲' : '▼'}</span>` : ''}
       ${isActive ? '<span style="font-size: 10px; background: linear-gradient(135deg, #a78bfa, #ec4899); color: #fff; padding: 3px 7px; border-radius: 8px; font-weight: 700; flex-shrink: 0;">LIVE</span>' : ''}
@@ -4403,6 +4414,14 @@ function renderScheduleItems() {
     if (item.type === 'pptx-slide' && item.content?.slide) {
       const thumb = buildSlideThumbnail(item.content.slide, 80, 45);
       thumb.style.cssText = 'flex-shrink:0;border-radius:4px;overflow:hidden;border:1px solid rgba(255,255,255,0.15);order:-1;';
+      div.insertBefore(thumb, div.children[1]);
+    }
+    // Insert an actual image thumbnail for background/logo items -- every
+    // one of these used to share the same literal title ("Background
+    // Slide"), so the thumbnail is the only way to tell them apart at a glance.
+    if (item.type === 'logo' && item.content?.image_url) {
+      const thumb = document.createElement('div');
+      thumb.style.cssText = `flex-shrink:0; order:-1; width:56px; height:32px; border-radius:4px; overflow:hidden; border:1px solid rgba(255,255,255,0.15); background:url('${item.content.image_url}') center/cover, #000;`;
       div.insertBefore(thumb, div.children[1]);
     }
 
@@ -4474,6 +4493,14 @@ function parseSongLyricSections(lyrics) {
     sections.push({ type: parts[i].toLowerCase(), lyrics: (parts[i + 1] || '').trim() });
   }
   return sections;
+}
+
+// Strips HTML tags for a plain one-line preview snippet (prayer/custom/
+// announcement content is stored as rich HTML from the rt-editor boxes).
+function stripHtmlToText(html) {
+  const div = document.createElement('div');
+  div.innerHTML = html || '';
+  return (div.textContent || '').replace(/\s+/g, ' ').trim();
 }
 
 function getScheduleItemTypeInfo(type) {
