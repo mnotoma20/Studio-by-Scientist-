@@ -480,6 +480,7 @@ async function createDisplayWindows() {
           win.webContents.send('set-timer-position', data.timer_position);
         }
       } catch (e) {}
+      win.webContents.send('set-watermark-tier', { isFreePlan: isFreePlanChurch() });
     });
 
     win.on('closed', () => {
@@ -1171,6 +1172,15 @@ function isFeatureAllowed(featureKey) {
   const plan = (currentChurch?.plan || 'free').toLowerCase();
   if (plan === 'pro' || plan === 'studio') return { allowed: true };
   return { success: false, allowed: false, error: 'This feature requires a Pro or Studio plan.', upgradeRequired: true, feature: featureKey };
+}
+
+// Free-tier projector watermark -- a visible (not subtle) reminder on every
+// display output, same idea as Loom/Canva's free-tier watermark. Owner and
+// paid churches never see it.
+function isFreePlanChurch() {
+  if (isOwner()) return false;
+  const plan = (currentChurch?.plan || 'free').toLowerCase();
+  return plan !== 'pro' && plan !== 'studio';
 }
 
 async function checkScheduleQuota() {

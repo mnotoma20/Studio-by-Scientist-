@@ -1143,6 +1143,13 @@
       </div>
     </div>
     <input type="text" class="search-input" placeholder="🔍 Search songs..." style="margin: 10px; width: calc(100% - 20px);">
+    <div style="display:flex; align-items:center; gap:10px; margin: 0 10px 10px;">
+      <div style="font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; flex: 1;">Show Song Name &amp; Author</div>
+      <div class="song-title-toggle" onclick="toggleSongTitle()" style="
+        width: 44px; height: 24px; background: #a78bfa; border-radius: 12px; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0;">
+        <div class="song-title-toggle-knob" style="position: absolute; top: 3px; left: 23px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: left 0.2s;"></div>
+      </div>
+    </div>
     <div class="books-list" id="songsList"></div>
   </div>
 
@@ -1489,9 +1496,9 @@
         <!-- Song title/author visibility — only shown for songs -->
         <div id="songTitleToggleRow" style="display: none; align-items: center; gap: 10px;">
           <div style="font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; flex: 1;">Show Song Name</div>
-          <div id="songTitleToggle" onclick="toggleSongTitle()" style="
+          <div class="song-title-toggle" onclick="toggleSongTitle()" style="
             width: 44px; height: 24px; background: #a78bfa; border-radius: 12px; cursor: pointer; position: relative; transition: background 0.2s; flex-shrink: 0;">
-            <div id="songTitleToggleKnob" style="position: absolute; top: 3px; left: 23px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: left 0.2s;"></div>
+            <div class="song-title-toggle-knob" style="position: absolute; top: 3px; left: 23px; width: 18px; height: 18px; background: #fff; border-radius: 50%; transition: left 0.2s;"></div>
           </div>
         </div>
       </div>
@@ -4199,11 +4206,20 @@ let editingItemIndex = null;
 
 function toggleSongTitle() {
   showSongTitle = !showSongTitle;
-  const toggle = document.getElementById('songTitleToggle');
-  const knob = document.getElementById('songTitleToggleKnob');
-  toggle.style.background = showSongTitle ? '#a78bfa' : '#374151';
-  knob.style.left = showSongTitle ? '23px' : '3px';
+  syncSongTitleToggleUI();
   ipcRenderer.send('set-song-title-visibility', showSongTitle);
+}
+
+// Multiple toggle switches (Schedule tab's per-item panel, Songs tab header)
+// all reflect the same shared showSongTitle state -- update every instance
+// found in the DOM, not just whichever tab happens to be open.
+function syncSongTitleToggleUI() {
+  document.querySelectorAll('.song-title-toggle').forEach((toggle) => {
+    toggle.style.background = showSongTitle ? '#a78bfa' : '#374151';
+  });
+  document.querySelectorAll('.song-title-toggle-knob').forEach((knob) => {
+    knob.style.left = showSongTitle ? '23px' : '3px';
+  });
 }
 
 async function loadSchedules() {

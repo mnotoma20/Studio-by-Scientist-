@@ -66,6 +66,29 @@
       max-width: 100%;
       width: 100%;
       padding-bottom: 0;
+      position: relative;
+      z-index: 10; /* stays readable above the free-plan watermark tiled behind it */
+    }
+
+    /* Free-plan watermark -- a diagonal tiled repeat of the logo + "STUDIO BY
+       SCIENTIST" text (drawn together onto one canvas tile by
+       buildWatermarkTile(), so it reads unmistakably as a watermark rather
+       than a background someone might actually like and never upgrade to
+       remove), shown behind all content (verse/lyrics text sits above it via
+       #content's own z-index) but above backgrounds/PPTX/slide decks so it
+       can't be hidden simply by picking a background image. Deliberately
+       visible, not a subtle corner mark -- the free tier's upgrade nudge.
+       background-image is set at runtime once the tile canvas is ready. */
+    #freePlanWatermark {
+      display: none;
+      position: fixed;
+      inset: -25%;
+      z-index: 6;
+      pointer-events: none;
+      opacity: 0.45;
+      background-size: 340px 220px;
+      background-repeat: repeat;
+      transform: rotate(-24deg);
     }
 
     @keyframes fadeIn {
@@ -301,6 +324,9 @@
   <!-- PPTX slide overlay — sits above everything, avoids clobbering verse/welcome DOM -->
   <div id="pptxOverlay" style="display:none; position:fixed; inset:0; z-index:5; overflow:hidden;"></div>
   <div id="slideDeckOverlay" style="display:none; position:fixed; inset:0; z-index:5; overflow:hidden;"></div>
+
+  <!-- Free-plan watermark — see #freePlanWatermark in <style> for why it's shaped this way -->
+  <div id="freePlanWatermark"></div>
 
   <!-- Lower Third overlay — TV-style broadcast bar, sits above all content -->
   <div id="lowerThird" style="display:none; position:fixed; bottom:0; left:0; right:0; z-index:30; pointer-events:none;">
@@ -1051,6 +1077,36 @@ function applyThemeColors(themeData) {
     } else {
       el.style.display = 'none';
     }
+  });
+
+  // Draws the logo + brand text once onto a canvas tile and hands that off as
+  // the watermark's background-image -- more reliable than hand-escaping an
+  // SVG string into a CSS url(), and lets logo + text share one tile exactly
+  // as composed here.
+  let _watermarkTileReady = false;
+  function buildWatermarkTile() {
+    if (_watermarkTileReady) return;
+    const tileW = 340, tileH = 220;
+    const canvas = document.createElement('canvas');
+    canvas.width = tileW;
+    canvas.height = tileH;
+    const ctx = canvas.getContext('2d');
+    const img = new Image();
+    img.onload = () => {
+      ctx.drawImage(img, (tileW - 70) / 2, 16, 70, 70);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 22px Arial, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('STUDIO BY SCIENTIST', tileW / 2, 132);
+      document.getElementById('freePlanWatermark').style.backgroundImage = `url(${canvas.toDataURL()})`;
+      _watermarkTileReady = true;
+    };
+    img.src = '../assets/logo.png';
+  }
+  buildWatermarkTile();
+
+  ipcRenderer.on('set-watermark-tier', (_event, { isFreePlan }) => {
+    document.getElementById('freePlanWatermark').style.display = isFreePlan ? 'block' : 'none';
   });
 
   ipcRenderer.on('set-timer-position', (_event, position) => {
