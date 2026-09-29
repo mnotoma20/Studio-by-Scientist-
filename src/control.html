@@ -1167,19 +1167,18 @@
       <div class="preview-empty">Click a section to preview</div>
     </div>
     <!-- 👇 ADD FONT SIZE CONTROL HERE 👇 -->
-    <div style="padding: 15px 0;">
-      <label style="display: block; margin-bottom: 8px; color: #9ca3af; font-size: 13px; font-weight: 600;">
-        LYRICS SIZE: <span id="lyricsFontSizeValue">48px</span>
-      </label>
-      <input 
-        type="range" 
+    <div style="padding: 15px 0; display: flex; align-items: center; gap: 10px;">
+      <div style="font-size: 13px; font-weight: 600; color: #9ca3af; flex: 1;">LYRICS SIZE</div>
+      <input
+        type="number"
         id="lyricsFontSize"
-        min="32" 
-        max="96" 
+        min="16"
+        max="300"
         value="48"
         oninput="updateLyricsPreviewSize(this.value)"
-        style="width: 100%; height: 6px; background: rgba(167,139,250,0.3); border-radius: 3px; outline: none; cursor: pointer;"
+        style="width: 80px; padding: 6px 10px; background: rgba(26,26,46,0.9); border: 1px solid rgba(167,139,250,0.4); border-radius: 8px; color: #fff; font-size: 18px; font-weight: 700; text-align: center; outline: none;"
       >
+      <div id="lyricsFontSizeValue" style="font-size: 12px; font-weight: 700; color: #a78bfa; min-width: 40px;">48px</div>
     </div>
 
     <div class="action-btns">
@@ -3469,13 +3468,13 @@ function displaySelectedSection() {
 let currentLyricsFontSize = 48;
 
 function updateLyricsPreviewSize(size) {
-  currentLyricsFontSize = parseInt(size);
-  document.getElementById('lyricsFontSizeValue').textContent = size + 'px';
-  
+  currentLyricsFontSize = parseInt(size) || currentLyricsFontSize || 48; // guards against NaN while the number field is mid-edit (e.g. briefly empty)
+  document.getElementById('lyricsFontSizeValue').textContent = currentLyricsFontSize + 'px';
+
   // Update the actual lyrics text in preview (not the wrapper div!)
   const lyricsTextDiv = document.querySelector('#lyricsPreview > div > div:last-child');
   if (lyricsTextDiv) {
-    lyricsTextDiv.style.fontSize = size + 'px';
+    lyricsTextDiv.style.fontSize = currentLyricsFontSize + 'px';
   }
 }
 
@@ -3567,7 +3566,26 @@ function renderSongEditor() {
     <div style="margin-bottom: 20px;">
       <label style="display: block; margin-bottom: 10px; color: #9ca3af; font-size: 13px; font-weight: 600;">Sections</label>
       <div id="sectionsContainer">${renderSections()}</div>
-      <button onclick="addSection()" style="margin-top: 10px; width: 100%; padding: 12px; background: rgba(45,45,74,0.6); border: 2px dashed rgba(167,139,250,0.3); border-radius: 6px; color: #a78bfa; cursor: pointer; font-size: 14px; font-weight: 600;">+ Add Section</button>
+      <div style="display: flex; gap: 8px; margin-top: 10px;">
+        <button onclick="addSection()" style="flex: 1; padding: 12px; background: rgba(45,45,74,0.6); border: 2px dashed rgba(167,139,250,0.3); border-radius: 6px; color: #a78bfa; cursor: pointer; font-size: 14px; font-weight: 600;">+ Add Section</button>
+        <button onclick="togglePasteLyrics()" style="flex: 1; padding: 12px; background: rgba(6,182,212,0.15); border: 2px dashed rgba(6,182,212,0.4); border-radius: 6px; color: #06b6d4; cursor: pointer; font-size: 14px; font-weight: 600;">📋 Paste Lyrics</button>
+      </div>
+      <div id="pasteLyricsBox" style="display: none; margin-top: 12px; padding: 14px; background: rgba(6,182,212,0.06); border: 1px solid rgba(6,182,212,0.25); border-radius: 8px;">
+        <div style="color: #9ca3af; font-size: 12px; margin-bottom: 8px; line-height: 1.5;">
+          Paste the whole song with a <b>blank line between each verse/chorus</b> — each gap becomes its own section, same as pasting into Notepad first. Starting a block with a label like "Chorus" or "Bridge" sets its type automatically.
+        </div>
+        <textarea id="pasteLyricsInput" placeholder="Verse 1 lyrics here...
+
+Chorus
+Chorus lyrics here...
+
+Verse 2 lyrics here..."
+          style="width: 100%; min-height: 160px; padding: 12px; background: rgba(26,26,46,0.9); border: 1px solid rgba(6,182,212,0.3); border-radius: 6px; color: #fff; font-family: monospace; line-height: 1.6; resize: vertical; outline: none;"></textarea>
+        <div style="display: flex; gap: 8px; margin-top: 10px;">
+          <button onclick="applyPastedLyrics()" style="flex: 1; padding: 10px; background: linear-gradient(135deg, #06b6d4, #0891b2); border: none; border-radius: 6px; color: #fff; cursor: pointer; font-size: 13px; font-weight: 700;">Split Into Sections</button>
+          <button onclick="togglePasteLyrics()" style="padding: 10px 16px; background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.2); border-radius: 6px; color: #9ca3af; cursor: pointer; font-size: 13px;">Cancel</button>
+        </div>
+      </div>
     </div>
     
     <button onclick="saveSong()" style="width: 100%; padding: 12px 24px; background: linear-gradient(135deg, #a78bfa, #ec4899); border: none; border-radius: 8px; color: #fff; font-weight: 600; cursor: pointer; font-size: 14px;">💾 Save Song</button>
@@ -3601,6 +3619,42 @@ function renderSections() {
 function addSection() {
   if (!currentSong.sections) currentSong.sections = [];
   currentSong.sections.push({ type: 'verse', lyrics: '' });
+  renderSongEditor();
+}
+
+function togglePasteLyrics() {
+  const box = document.getElementById('pasteLyricsBox');
+  if (!box) return;
+  box.style.display = box.style.display === 'none' ? 'block' : 'none';
+  if (box.style.display === 'block') document.getElementById('pasteLyricsInput')?.focus();
+}
+
+// EasyWorship-style quick entry: paste the whole song with a blank line
+// between each verse/chorus (same as writing it out in Notepad first) and
+// each gap becomes its own section, instead of clicking "+ Add Section" and
+// typing each block into its own box one at a time.
+function splitLyricsIntoSections(text) {
+  const KNOWN_TYPES = { verse: 'verse', chorus: 'chorus', 'pre-chorus': 'chorus', prechorus: 'chorus', bridge: 'bridge', intro: 'intro', outro: 'outro', tag: 'outro', ending: 'outro' };
+  const blocks = text.split(/\n\s*\n+/).map((b) => b.trim()).filter(Boolean);
+  return blocks.map((block) => {
+    const lines = block.split('\n');
+    const firstLine = lines[0].trim().toLowerCase().replace(/[:\[\]]/g, '').replace(/\s*\d+\s*$/, '').trim();
+    const matchedType = KNOWN_TYPES[firstLine];
+    if (matchedType && lines.length > 1) {
+      return { type: matchedType, lyrics: lines.slice(1).join('\n').trim() };
+    }
+    return { type: 'verse', lyrics: block };
+  });
+}
+
+function applyPastedLyrics() {
+  const text = document.getElementById('pasteLyricsInput')?.value || '';
+  if (!text.trim()) return;
+  const newSections = splitLyricsIntoSections(text);
+  if (!newSections.length) return;
+  const hasExisting = currentSong.sections && currentSong.sections.some((s) => s.lyrics?.trim());
+  if (hasExisting && !confirm(`This replaces the ${currentSong.sections.length} existing section(s) with ${newSections.length} new one(s) from the pasted text. Continue?`)) return;
+  currentSong.sections = newSections;
   renderSongEditor();
 }
 

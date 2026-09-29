@@ -412,6 +412,7 @@ async function loadScreenConfigs() {
     const { data } = await supabase
       .from('screen_configs')
       .select('*')
+      .eq('church_id', currentChurch?.id || null)
       .order('screen_index', { ascending: true });
     if (data?.length) {
       // Merge: keep saved rows, fill in any new default screens (e.g. screen_index 4)
@@ -472,6 +473,7 @@ async function createDisplayWindows() {
         const { data } = await supabase
           .from('church_settings')
           .select('logo_url, watermark_position, timer_position')
+          .eq('church_id', currentChurch?.id || null)
           .limit(1).single();
         if (data?.logo_url) {
           win.webContents.send('show-logo-watermark', { url: data.logo_url, position: data.watermark_position || 'bottom-left' });
@@ -738,6 +740,7 @@ ipcMain.handle('get-songs', async () => {
     const { data: songs, error } = await supabase
       .from('songs')
       .select('*')
+      .eq('church_id', currentChurch?.id || null)
       .order('title', { ascending: true });
 
     if (error) throw error;
@@ -761,6 +764,7 @@ ipcMain.handle('save-song', async (event, song) => {
           updated_at: new Date().toISOString()
         })
         .eq('id', song.id)
+        .eq('church_id', currentChurch?.id || null)
         .select()
         .single();
       if (error) throw error;
@@ -771,7 +775,8 @@ ipcMain.handle('save-song', async (event, song) => {
         .insert([{
           title: song.title,
           author: song.author,
-          sections: song.sections
+          sections: song.sections,
+          church_id: currentChurch?.id || null
         }])
         .select()
         .single();
@@ -790,7 +795,8 @@ ipcMain.handle('delete-song', async (event, songId) => {
     const { error } = await supabase
       .from('songs')
       .delete()
-      .eq('id', songId);
+      .eq('id', songId)
+      .eq('church_id', currentChurch?.id || null);
     if (error) throw error;
     return { success: true };
   } catch (error) {
@@ -869,6 +875,7 @@ ipcMain.handle('get-themes', async () => {
     const { data: themes, error } = await supabase
       .from('themes')
       .select('*')
+      .eq('church_id', currentChurch?.id || null)
       .order('name', { ascending: true });
 
     if (error) throw error;
@@ -896,6 +903,7 @@ ipcMain.handle('save-theme', async (event, theme) => {
           overlay_opacity: theme.overlay_opacity
         })
         .eq('id', theme.id)
+        .eq('church_id', currentChurch?.id || null)
         .select()
         .single();
 
@@ -912,7 +920,8 @@ ipcMain.handle('save-theme', async (event, theme) => {
           text_color: theme.text_color,
           title_color: theme.title_color,
           font_size: theme.font_size,
-          overlay_opacity: theme.overlay_opacity
+          overlay_opacity: theme.overlay_opacity,
+          church_id: currentChurch?.id || null
         }])
         .select()
         .single();
@@ -932,7 +941,8 @@ ipcMain.handle('delete-theme', async (event, themeId) => {
     const { error } = await supabase
       .from('themes')
       .delete()
-      .eq('id', themeId);
+      .eq('id', themeId)
+      .eq('church_id', currentChurch?.id || null);
 
     if (error) throw error;
     return { success: true };
@@ -957,8 +967,9 @@ ipcMain.handle('get-backgrounds', async () => {
     const { data, error } = await supabase
       .from('backgrounds')
       .select('*')
+      .eq('church_id', currentChurch?.id || null)
       .order('created_at', { ascending: false });
-    
+
     if (error) throw error;
     return { success: true, backgrounds: data || [] };
   } catch (error) {
@@ -971,10 +982,10 @@ ipcMain.handle('save-background', async (event, bg) => {
   try {
     const { data, error } = await supabase
       .from('backgrounds')
-      .insert([bg])
+      .insert([{ ...bg, church_id: currentChurch?.id || null }])
       .select()
       .single();
-    
+
     if (error) throw error;
     return { success: true, background: data };
   } catch (error) {
@@ -985,8 +996,9 @@ ipcMain.handle('save-background', async (event, bg) => {
 
 ipcMain.handle('set-logo-background', async (event, bgId) => {
   try {
-    await supabase.from('backgrounds').update({ is_logo: false }).eq('is_logo', true);
-    const { error } = await supabase.from('backgrounds').update({ is_logo: true }).eq('id', bgId);
+    const churchId = currentChurch?.id || null;
+    await supabase.from('backgrounds').update({ is_logo: false }).eq('is_logo', true).eq('church_id', churchId);
+    const { error } = await supabase.from('backgrounds').update({ is_logo: true }).eq('id', bgId).eq('church_id', churchId);
     if (error) throw error;
     return { success: true };
   } catch (error) {
@@ -997,7 +1009,7 @@ ipcMain.handle('set-logo-background', async (event, bgId) => {
 
 ipcMain.handle('delete-background', async (event, bgId) => {
   try {
-    const { error } = await supabase.from('backgrounds').delete().eq('id', bgId);
+    const { error } = await supabase.from('backgrounds').delete().eq('id', bgId).eq('church_id', currentChurch?.id || null);
     if (error) throw error;
     return { success: true };
   } catch (error) {
@@ -1014,6 +1026,7 @@ ipcMain.handle('get-slide-decks', async () => {
     const { data, error } = await supabase
       .from('slide_decks')
       .select('*')
+      .eq('church_id', currentChurch?.id || null)
       .order('updated_at', { ascending: false });
     if (error) throw error;
     return { success: true, decks: data || [] };
@@ -1030,6 +1043,7 @@ ipcMain.handle('get-slide-deck', async (event, deckId) => {
       .from('slide_decks')
       .select('*')
       .eq('id', deckId)
+      .eq('church_id', currentChurch?.id || null)
       .single();
     if (error) throw error;
     return { success: true, deck: data };
@@ -1053,6 +1067,7 @@ ipcMain.handle('save-slide-deck', async (event, deck) => {
           updated_at: new Date().toISOString()
         })
         .eq('id', deck.id)
+        .eq('church_id', currentChurch?.id || null)
         .select()
         .single();
       if (error) throw error;
@@ -1067,7 +1082,8 @@ ipcMain.handle('save-slide-deck', async (event, deck) => {
           pages: deck.pages,
           page_w: deck.page_w || 1920,
           page_h: deck.page_h || 1080,
-          theme: deck.theme || 'modern'
+          theme: deck.theme || 'modern',
+          church_id: currentChurch?.id || null
         }])
         .select()
         .single();
@@ -1082,7 +1098,7 @@ ipcMain.handle('save-slide-deck', async (event, deck) => {
 
 ipcMain.handle('delete-slide-deck', async (event, deckId) => {
   try {
-    const { error } = await supabase.from('slide_decks').delete().eq('id', deckId);
+    const { error } = await supabase.from('slide_decks').delete().eq('id', deckId).eq('church_id', currentChurch?.id || null);
     if (error) throw error;
     return { success: true };
   } catch (error) {
@@ -1246,6 +1262,7 @@ ipcMain.handle('update-schedule', async (event, schedule) => {
       .from('schedules')
       .update({ title: schedule.title, service_date: schedule.service_date, service_type: schedule.service_type })
       .eq('id', schedule.id)
+      .eq('church_id', currentChurch?.id || null)
       .select()
       .single();
     if (error) throw error;
@@ -1257,6 +1274,17 @@ ipcMain.handle('update-schedule', async (event, schedule) => {
 
 ipcMain.handle('delete-schedule', async (event, scheduleId) => {
   try {
+    // Confirm this church actually owns the schedule before cascading the
+    // schedule_items delete -- schedule_items has no church_id of its own
+    // to scope by, so an unscoped items-delete-first order could destroy
+    // another church's items if scheduleId didn't belong to this church.
+    const { data: owned, error: ownErr } = await supabase
+      .from('schedules')
+      .select('id')
+      .eq('id', scheduleId)
+      .eq('church_id', currentChurch?.id || null)
+      .single();
+    if (ownErr || !owned) throw new Error('Schedule not found');
     await supabase.from('schedule_items').delete().eq('schedule_id', scheduleId);
     const { error } = await supabase.from('schedules').delete().eq('id', scheduleId);
     if (error) throw error;
@@ -1964,6 +1992,7 @@ ipcMain.handle('get-settings', async () => {
     const { data, error } = await supabase
       .from('church_settings')
       .select('*')
+      .eq('church_id', currentChurch?.id || null)
       .limit(1)
       .single();
     if (!error && data) {
@@ -1979,21 +2008,24 @@ ipcMain.handle('get-settings', async () => {
 
 ipcMain.handle('save-settings', async (_event, updates) => {
   try {
+    const churchId = currentChurch?.id || null;
     const { data: existing } = await supabase
       .from('church_settings')
       .select('id')
+      .eq('church_id', churchId)
       .limit(1)
       .single();
     if (existing) {
       const { error } = await supabase
         .from('church_settings')
         .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq('id', existing.id);
+        .eq('id', existing.id)
+        .eq('church_id', churchId);
       if (error) throw error;
     } else {
       const { error } = await supabase
         .from('church_settings')
-        .insert([{ ...updates }]);
+        .insert([{ ...updates, church_id: churchId }]);
       if (error) throw error;
     }
     return { success: true };
@@ -2052,15 +2084,17 @@ ipcMain.handle('save-screen-config', async (event, config) => {
     }
     const { show_timer, ...dbConfig } = config;
 
+    const churchId = currentChurch?.id || null;
     const { data: existing } = await supabase
       .from('screen_configs')
       .select('id')
       .eq('screen_index', dbConfig.screen_index)
+      .eq('church_id', churchId)
       .single();
     if (existing) {
-      await supabase.from('screen_configs').update({ ...dbConfig, updated_at: new Date().toISOString() }).eq('id', existing.id);
+      await supabase.from('screen_configs').update({ ...dbConfig, updated_at: new Date().toISOString() }).eq('id', existing.id).eq('church_id', churchId);
     } else {
-      await supabase.from('screen_configs').insert([dbConfig]);
+      await supabase.from('screen_configs').insert([{ ...dbConfig, church_id: churchId }]);
     }
     // Keep in-memory array in sync so toggle-screen / reload-screen see the latest profile
     const idx = screenConfigs.findIndex(c => c.screen_index === config.screen_index);
