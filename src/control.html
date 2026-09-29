@@ -1225,8 +1225,8 @@
       </div>
       <button onclick="importPptx()" style="padding:8px 18px;background:linear-gradient(135deg,#a78bfa,#ec4899);border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;font-size:13px;">📂 Import PPTX</button>
     </div>
-    <div id="pptxSlidesList" style="flex:1;overflow-y:auto;padding:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;align-content:start;">
-      <div style="grid-column:1/-1;text-align:center;color:#6b7280;padding:60px 20px;">
+    <div id="pptxSlidesList" style="flex:1;overflow-y:auto;padding:20px;display:flex;flex-wrap:wrap;gap:14px;align-content:flex-start;">
+      <div style="width:100%;text-align:center;color:#6b7280;padding:60px 20px;">
         <div style="font-size:40px;margin-bottom:12px;">📊</div>
         <div style="font-size:14px;">Import a .pptx file — click any slide to display it</div>
       </div>
@@ -9069,7 +9069,7 @@ function escapeHtml(s) {
 function renderPptxSlides() {
   const list = document.getElementById('pptxSlidesList');
   if (!pptxSlides.length) {
-    list.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:#6b7280;padding:40px;">No slides found</div>';
+    list.innerHTML = '<div style="width:100%;text-align:center;color:#6b7280;padding:40px;">No slides found</div>';
     return;
   }
   list.innerHTML = '';
@@ -9077,7 +9077,14 @@ function renderPptxSlides() {
   pptxSlides.forEach((slide, i) => {
     const isActive = activePptxSlide === i;
     const card = document.createElement('div');
-    card.style.cssText = `cursor:pointer;border-radius:10px;overflow:hidden;border:2px solid ${isActive ? '#a78bfa' : 'rgba(167,139,250,0.15)'};transition:border-color 0.15s,box-shadow 0.15s;box-shadow:${isActive ? '0 0 18px rgba(167,139,250,0.35)' : 'none'};`;
+    // flex-wrap, not CSS Grid -- with 100+ large data-URI images inserted via
+    // JS, grid-template-columns' fr-unit track sizing hits a real Chromium
+    // circular-dependency bug (width depends on the fr track, height depends
+    // on width via the image's aspect ratio) and every card's height
+    // collapses to ~24px (just the label), clipping all but a sliver of each
+    // thumbnail. Confirmed by testing grid vs. flex vs. plain block against
+    // this exact scenario -- flex-wrap is the one that sizes correctly.
+    card.style.cssText = `flex:1 1 220px;max-width:300px;cursor:pointer;border-radius:10px;overflow:hidden;border:2px solid ${isActive ? '#a78bfa' : 'rgba(167,139,250,0.15)'};transition:border-color 0.15s,box-shadow 0.15s;box-shadow:${isActive ? '0 0 18px rgba(167,139,250,0.35)' : 'none'};`;
 
     // Thumbnail. Image mode: let the PNG size itself (natural height). Parsed
     // mode: use the computed slide aspect ratio.
