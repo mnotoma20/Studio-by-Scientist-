@@ -8991,20 +8991,48 @@ async function importPptx() {
   if (result.canceled) return;
   if (result.upgradeRequired) { showUpgradeModal(result.error); return; }
   if (!result.success) { alert('Failed to read PPTX: ' + result.error); return; }
-  pptxSlides = result.slides;
-  pptxAspect = (result.slideW && result.slideH) ? result.slideW / result.slideH : 16 / 9;
-  activePptxSlide = -1;
-  const filenameEl = document.getElementById('pptxFilename');
-  filenameEl.style.display = 'inline';
-  const modeTag = result.mode === 'image' ? ' · exact' : '';
-  filenameEl.textContent = `${result.filename} — ${pptxSlides.length} slides${modeTag}`;
+  applyPptxResult(result, { resetActive: true });
 
   // Nudge the user to install LibreOffice for pixel-exact slides
   if (result.libreofficeMissing) {
     showLibreOfficeNotice();
   }
-  renderPptxSlides();
 }
+
+// Shared by a fresh import and a live file-watcher refresh (see
+// 'pptx-file-updated' below) so both paths update state/UI identically.
+function applyPptxResult(result, { resetActive } = {}) {
+  const prevActiveIndex = activePptxSlide;
+  pptxSlides = result.slides;
+  pptxAspect = (result.slideW && result.slideH) ? result.slideW / result.slideH : 16 / 9;
+  // A live update (the source file changed on disk, not a fresh import)
+  // keeps whatever slide was showing live rather than clearing it — the
+  // point is the content refreshes in place without interrupting service.
+  activePptxSlide = resetActive ? -1 : Math.min(prevActiveIndex, pptxSlides.length - 1);
+  const filenameEl = document.getElementById('pptxFilename');
+  filenameEl.style.display = 'inline';
+  const modeTag = result.mode === 'image' ? ' · exact' : '';
+  filenameEl.textContent = `${result.filename} — ${pptxSlides.length} slides${modeTag}`;
+  renderPptxSlides();
+  if (!resetActive && activePptxSlide >= 0) {
+    ipcRenderer.send('display-pptx-slide', pptxSlides[activePptxSlide]);
+  }
+}
+
+// The imported .pptx is watched on disk (main.js) -- when the source file
+// changes (e.g. a typo fixed in PowerPoint), this refreshes the slides here
+// automatically, matching EasyWorship's "live dynamic updates" instead of
+// requiring a manual re-import.
+ipcRenderer.on('pptx-file-updated', (_event, result) => {
+  if (!result.success) return;
+  applyPptxResult(result, { resetActive: false });
+  const filenameEl = document.getElementById('pptxFilename');
+  if (filenameEl) {
+    const orig = filenameEl.textContent;
+    filenameEl.textContent = '↻ Updated — ' + orig;
+    setTimeout(() => { if (filenameEl.textContent.startsWith('↻ Updated — ')) filenameEl.textContent = orig; }, 2500);
+  }
+});
 
 function showLibreOfficeNotice() {
   if (document.getElementById('libreNotice')) return;

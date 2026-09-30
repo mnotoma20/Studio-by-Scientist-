@@ -2470,18 +2470,11 @@ async function renderPdfToImages(pdfPath, scale = 2.0) {
   });
 }
 
-ipcMain.handle('import-pptx', async () => {
-  const gate = isFeatureAllowed('pptxImport');
-  if (!gate.allowed) return gate;
-  const result = await dialog.showOpenDialog(controlWindow, {
-    title: 'Import PowerPoint File',
-    filters: [{ name: 'PowerPoint', extensions: ['pptx'] }],
-    properties: ['openFile']
-  });
-  if (result.canceled || !result.filePaths.length) return { canceled: true };
-
-  const filePath = result.filePaths[0];
-
+// Converts one .pptx file to slides (LibreOffice image path, or the raw XML
+// parser as a fallback) -- factored out of the import-pptx handler so the
+// live file-watcher below can re-run the exact same conversion when the
+// source file changes on disk, instead of requiring a manual re-import.
+async function convertPptxFile(filePath) {
   // ── High-fidelity path: LibreOffice → PDF → PNG per slide ──
   const soffice = findSoffice();
   if (soffice) {
@@ -2633,6 +2626,64 @@ ipcMain.handle('import-pptx', async () => {
   } catch (err) {
     return { success: false, error: err.message };
   }
+}
+
+// Watches the currently-imported .pptx for changes on disk and automatically
+// re-converts + pushes fresh slides to the control window -- so fixing a
+// typo in the original PowerPoint reflects in the app without a manual
+// re-import, matching EasyWorship's "live dynamic updates" behavior. Only
+// one file is watched at a time; importing a new one replaces the watch.
+let pptxWatcher = null;
+let pptxWatchDebounce = null;
+
+function watchPptxFile(filePath) {
+  if (pptxWatcher) { pptxWatcher.close(); pptxWatcher = null; }
+  try {
+    // Watching the file directly breaks after one save: PowerPoint/Keynote
+    // (like most editors) save via write-to-temp-then-rename, not an
+    // in-place write, which replaces the file's inode -- fs.watch() on the
+    // original path silently stops firing after that first replace.
+    // Confirmed empirically (a second atomic-replace produced no event).
+    // Watching the parent directory and filtering by filename survives
+    // any number of subsequent saves, since the watch isn't tied to a
+    // specific inode.
+    const dir = path.dirname(filePath);
+    const targetName = path.basename(filePath);
+    pptxWatcher = fs.watch(dir, (eventType, filename) => {
+      if (filename !== targetName) return;
+      // Editors fire several events per save (temp-file create + rename) --
+      // debounce so we convert once, after it settles.
+      clearTimeout(pptxWatchDebounce);
+      pptxWatchDebounce = setTimeout(async () => {
+        try {
+          const result = await convertPptxFile(filePath);
+          if (result.success && controlWindow && !controlWindow.isDestroyed()) {
+            controlWindow.webContents.send('pptx-file-updated', result);
+          }
+        } catch (err) {
+          console.error('Live PPTX re-convert failed:', err.message);
+        }
+      }, 600);
+    });
+  } catch (err) {
+    console.error('Could not watch PPTX file for live updates:', err.message);
+  }
+}
+
+ipcMain.handle('import-pptx', async () => {
+  const gate = isFeatureAllowed('pptxImport');
+  if (!gate.allowed) return gate;
+  const dialogResult = await dialog.showOpenDialog(controlWindow, {
+    title: 'Import PowerPoint File',
+    filters: [{ name: 'PowerPoint', extensions: ['pptx'] }],
+    properties: ['openFile']
+  });
+  if (dialogResult.canceled || !dialogResult.filePaths.length) return { canceled: true };
+
+  const filePath = dialogResult.filePaths[0];
+  const result = await convertPptxFile(filePath);
+  if (result.success) watchPptxFile(filePath);
+  return result;
 });
 
 ipcMain.handle('fetch-lyrics-gpt', async (_event, { title, artist }) => {
