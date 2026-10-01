@@ -5,6 +5,11 @@ export const metadata: Metadata = {
   title: 'Studio by Scientist — AI-Powered Church Presentation Software',
   description: 'Studio listens as your pastor preaches. Bible verses appear on screen — automatically. No typing. No delays. Just the Word.',
   keywords: 'church presentation software, AI Bible detection, worship software, projection software, church tech',
+  icons: {
+    icon: '/logo.png',
+    shortcut: '/logo.png',
+    apple: '/logo.png',
+  },
   openGraph: {
     title: 'Studio by Scientist',
     description: 'AI-Powered Church Presentation Software',
