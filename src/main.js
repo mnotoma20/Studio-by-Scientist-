@@ -578,16 +578,16 @@ ipcMain.on('auth-signin', async (event, data) => {
   // Must happen BEFORE signIn(): supabase-js writes the new session to storage as part of
   // that call resolving, so persistence has to already be armed for that first write to
   // land on disk — flipping it on afterward was the bug (session only ever lived in
-  // memory, gone the moment the app closed). Unchecked → make sure nothing lingers from a
-  // previous remembered login on this machine.
-  if (setSessionPersistence) setSessionPersistence(!!data.rememberMe);
+  // memory, gone the moment the app closed). Always on now, same as signup -- a church's
+  // own dedicated install has no real case for not staying signed in.
+  if (setSessionPersistence) setSessionPersistence(true);
 
   const result = await auth.signIn(data.email, data.password);
 
   if (result.success) {
     currentUser = result.user;
     currentChurch = result.church;
-    if (data.rememberMe) store.set('rememberedEmail', data.email);
+    store.set('rememberedEmail', data.email);
     console.log('✅ Sign in successful!');
   }
 

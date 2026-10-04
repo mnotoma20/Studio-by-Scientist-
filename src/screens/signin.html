@@ -320,10 +320,6 @@
 
       <!-- Options -->
       <div class="form-options">
-        <label class="checkbox-label">
-          <input type="checkbox" id="rememberMe" checked />
-          <span>Remember me</span>
-        </label>
         <a class="forgot-link" onclick="forgotPassword()">Forgot password?</a>
       </div>
 
@@ -370,11 +366,10 @@
     
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
-    const rememberMe = document.getElementById('rememberMe').checked;
 
     // Validation
     errorMessage.classList.remove('show');
-    
+
     if (!email || !password) {
       showError('Please enter both email and password');
       return;
@@ -384,11 +379,12 @@
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<span class="loading"></span> Signing In...';
 
-    // Send to main process to handle Supabase
+    // Send to main process to handle Supabase. Always stays signed in on
+    // this device (same as signup) -- a desktop app's own dedicated
+    // install has no real "shared computer" case that calls for an opt-out.
     ipcRenderer.send('auth-signin', {
       email,
-      password,
-      rememberMe
+      password
     });
   });
 
@@ -432,7 +428,6 @@
   ipcRenderer.on('remembered-email', (event, email) => {
     if (email) {
       document.getElementById('email').value = email;
-      document.getElementById('rememberMe').checked = true;
     }
   });
 
