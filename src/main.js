@@ -518,6 +518,14 @@ function showAllDisplayWindows() {
     if (!win || win.isDestroyed()) continue;
     win.show();
     win.setFullScreen(true);
+    // show()/setFullScreen() both grab OS-level focus on their own, leaving the operator's
+    // control window looking active but not actually focused -- the first click after Go Live
+    // just reactivates the window instead of registering, which reads as "the mouse stopped
+    // working." Display windows are output-only; hand focus back once each one's fullscreen
+    // transition (which is animated on macOS) actually finishes, not immediately.
+    win.once('enter-full-screen', () => {
+      if (controlWindow && !controlWindow.isDestroyed()) controlWindow.focus();
+    });
   }
 }
 
@@ -527,6 +535,7 @@ function hideAllDisplayWindows() {
     win.setFullScreen(false);
     win.hide();
   }
+  if (controlWindow && !controlWindow.isDestroyed()) controlWindow.focus();
 }
 
 function closeAllDisplayWindows() {
@@ -2246,6 +2255,11 @@ ipcMain.on('reload-screen', async (event, { screenIndex }) => {
   if (displayWindows.some(d => d.window.isVisible())) {
     win.show();
     win.setFullScreen(true);
+    // See showAllDisplayWindows() -- show()/setFullScreen() grab OS focus on their own and
+    // leave the operator's control window looking active but not actually focused.
+    win.once('enter-full-screen', () => {
+      if (controlWindow && !controlWindow.isDestroyed()) controlWindow.focus();
+    });
   }
 });
 
@@ -2312,6 +2326,11 @@ ipcMain.on('reassign-screen-display', (event, { screenIndex, displayId }) => {
   existing.window.setFullScreen(false);
   existing.window.setBounds(target.bounds);
   existing.window.setFullScreen(true);
+  // See showAllDisplayWindows() -- setFullScreen() grabs OS focus on its own and leaves the
+  // operator's control window looking active but not actually focused.
+  existing.window.once('enter-full-screen', () => {
+    if (controlWindow && !controlWindow.isDestroyed()) controlWindow.focus();
+  });
 });
 
 ipcMain.on('schedule-item-changed', (event, data) => {
