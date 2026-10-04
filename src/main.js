@@ -333,7 +333,6 @@ function createAppWindows() {
 
   controlWindow.once('ready-to-show', () => {
     controlWindow.show();
-    controlWindow.webContents.openDevTools();
 
     // Send user and church data to control window
     controlWindow.webContents.send('user-data', {
