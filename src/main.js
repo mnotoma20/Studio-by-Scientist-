@@ -1461,13 +1461,11 @@ ipcMain.handle('transcribe-audio', async (_event, audioBuffer) => {
 });
 
 // Fetch verse only — renderer decides whether to display (used by Live Mode voice detection)
-ipcMain.handle('ai-fetch-and-display-passive', async (_event, reference) => {
+ipcMain.handle('ai-fetch-and-display-passive', async (_event, reference, translation) => {
   try {
-    const url = `https://bible-api.com/${encodeURIComponent(reference)}?translation=kjv`;
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.error) return { success: false, error: data.error };
-    return { success: true, verse: data };
+    const verse = await fetchVerseInTranslation(reference, translation);
+    if (!verse) return { success: false, error: 'Not found' };
+    return { success: true, verse };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -1475,6 +1473,32 @@ ipcMain.handle('ai-fetch-and-display-passive', async (_event, reference) => {
 
 // Public-domain translations served free by bible-api.com, no key needed.
 const FREE_BIBLE_TRANSLATIONS = new Set(['kjv', 'asv', 'web', 'webbe', 'ylt', 'darby', 'bbe', 'oeb-us', 'oeb-cw']);
+
+// Common spoken/typed names Live Mode's voice detection may hear for a translation switch,
+// normalized to the codes this app actually supports (the free set above, plus esv/nlt). Loose
+// enough to survive GPT's own paraphrasing ("the English Standard Version" / "english standard")
+// without false-matching unrelated text, since this only ever runs on the short
+// "TRANSLATION:<name>" string GPT itself already extracted, not raw transcript.
+const TRANSLATION_ALIASES = {
+  kjv: 'kjv', 'king james': 'kjv',
+  asv: 'asv', 'american standard': 'asv',
+  web: 'web', 'world english bible': 'web',
+  webbe: 'webbe', 'world english bible british edition': 'webbe', 'british world english bible': 'webbe',
+  ylt: 'ylt', "young's literal": 'ylt', 'youngs literal': 'ylt',
+  darby: 'darby',
+  bbe: 'bbe', 'basic english': 'bbe', 'bible in basic english': 'bbe',
+  'oeb-us': 'oeb-us', 'open english bible': 'oeb-us', 'open english bible us': 'oeb-us',
+  'oeb-cw': 'oeb-cw', 'open english bible commonwealth': 'oeb-cw',
+  esv: 'esv', 'english standard': 'esv',
+  nlt: 'nlt', 'new living': 'nlt',
+};
+
+function resolveTranslationCode(heard) {
+  const raw = (heard || '').trim().toLowerCase();
+  if (TRANSLATION_ALIASES[raw]) return TRANSLATION_ALIASES[raw];
+  const stripped = raw.replace(/\bthe\b/g, '').replace(/\bversion\b|\btranslation\b/g, '').replace(/\s+/g, ' ').trim();
+  return TRANSLATION_ALIASES[stripped] || null;
+}
 
 // Neither the ESV nor NLT API returns per-verse JSON for a whole chapter --
 // both hand back one blob of text/HTML with verse numbers embedded inline,
@@ -1576,16 +1600,42 @@ async function fetchNltPassage(query) {
   // verse -- confirmed against a live response for John 3:16.
   let cleaned = html.replace(/<a class="a-tn">.*?<\/a>/g, '');
   cleaned = stripBalancedSpan(cleaned, 'tn');
-  const marked = cleaned.replace(/<span class="vn">(\d+)<\/span>/g, ' $1 ');
-  const stripped = marked
+  // Split on the verse-number markers themselves while they're still a distinguishable HTML
+  // tag, keeping the number (capture group survives a String.split). Splitting on bare digits
+  // in the flattened text instead (the previous approach) is ambiguous -- a verse that mentions
+  // "40 days" would get cut there too -- and shattered every verse into one token per word
+  // rather than one token per verse, since literal spaces are far more common than real
+  // verse breaks. Each chunk is cleaned independently after the split.
+  const cleanChunk = (s) => s
     .replace(/<[^>]+>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&#8216;/g, "‘")
     .replace(/&#8217;/g, "’")
     .replace(/&#8220;/g, "“")
-    .replace(/&#8221;/g, "”");
-  const tokens = stripped.split(' ');
+    .replace(/&#8221;/g, "”")
+    .replace(/\s+/g, ' ')
+    .trim();
+  const tokens = cleaned.split(/<span class="vn">(\d+)<\/span>/).map(cleanChunk);
   return { reference: query, verses: pairVerseNumbersAndText(tokens).map((v) => ({ book_name: book, chapter, verse: v.verse, text: v.text })) };
+}
+
+// Unified verse fetch for Live Mode -- always resolves to the same {reference, text, verses}
+// shape regardless of which backend actually served it (free bible-api.com translation vs.
+// licensed ESV/NLT), so callers (display, auto-advance, the chapter-context panel) don't need
+// to know or care which translation is active.
+async function fetchVerseInTranslation(reference, translation) {
+  const trans = (translation || 'kjv').toLowerCase();
+  if (trans === 'esv' || trans === 'nlt') {
+    const fetchPassage = trans === 'esv' ? fetchEsvPassage : fetchNltPassage;
+    const { reference: canonicalRef, verses } = await fetchPassage(reference);
+    if (!verses.length) return null;
+    return { reference: canonicalRef, text: verses.map((v) => v.text).join(' '), verses };
+  }
+  const safeTrans = FREE_BIBLE_TRANSLATIONS.has(trans) ? trans : 'kjv';
+  const res = await fetch(`https://bible-api.com/${encodeURIComponent(reference)}?translation=${safeTrans}`);
+  const data = await res.json();
+  if (data.error || (!data.text && !data.verses)) return null;
+  return { reference: data.reference, text: data.text, verses: data.verses };
 }
 
 // Serves the Bible tab's chapter loader (control.html loadChapter) --
@@ -1663,9 +1713,13 @@ ipcMain.handle('detect-bible-reference', async (_event, data) => {
       ? `Previous context: "${data.recentContext}"\nCurrent chunk: "${data.text}"`
       : `"${data.text}"`;
 
-    const prompt = `You are a Bible verse detection system for a live church service. Analyze this sermon transcript chunk and identify any Bible verse being quoted, referenced, or navigated to.
-
-${contextText}
+    // Everything up to the final "Transcript to analyze" line is identical on every single
+    // call -- only the transcript chunk at the very end changes. Keeping that static block
+    // first (instead of interpolating the transcript near the top, like this used to) lets
+    // OpenAI's automatic prompt caching match the repeated prefix, cutting latency and cost on
+    // every call after the first. Reordering doesn't change what the model is told, so it's not
+    // a quality tradeoff -- same instructions, same examples, just the variable part moved last.
+    const prompt = `You are a Bible verse detection system for a live church service. Analyze a sermon transcript chunk and identify any Bible verse being quoted, referenced, navigated to, or a request to switch Bible translation.
 
 TRANSCRIPTION VARIATIONS TO HANDLE:
 - "Nay-hum", "Nayhum", "Nahoom" = Nahum
@@ -1893,13 +1947,25 @@ Early Church:
 - "suddenly there was a great earthquake and all the prison doors opened" → STORY:Acts 16:26
 - "the jailer fell down trembling and said what must I do to be saved" → STORY:Acts 16:30
 
+TRANSLATION SWITCH REQUESTS:
+- If the preacher explicitly asks to hear a verse in a different Bible translation/version
+  (e.g. "let's read that in the NIV", "give me the ESV", "what does the New Living Translation
+  say", "switch to the Message"), return "TRANSLATION:<name as heard>" using the shortest
+  common name or abbreviation (e.g. "esv", "nlt", "niv", "message", "amplified").
+- Do not return this for an ordinary Scripture reading -- only when a different version is
+  explicitly being requested.
+
 Respond with ONLY one of:
 - A Bible reference: "Book Chapter:Verse" (e.g. "John 3:16")
 - A navigation command: "NAV:NEXT", "NAV:PREV", "NAV:VERSE:20", "NAV:CHAPTER:5"
 - A narrative story: "STORY:Book Chapter:Verse" (e.g. "STORY:1 Samuel 17:45")
+- A translation switch: "TRANSLATION:<name>" (e.g. "TRANSLATION:esv")
 - null
 
-Nothing else. No explanation. No punctuation after.`;
+Nothing else. No explanation. No punctuation after.
+
+Transcript to analyze:
+${contextText}`;
 
     const aiResult = await aiOpenAI({
       kind: 'chat',
@@ -1924,13 +1990,23 @@ Nothing else. No explanation. No punctuation after.`;
       return { success: true, reference: rawResponse, verse: null };
     }
 
+    if (rawResponse.startsWith('TRANSLATION:')) {
+      const heard = rawResponse.slice('TRANSLATION:'.length).trim();
+      const resolved = resolveTranslationCode(heard);
+      return {
+        success: true,
+        reference: resolved ? `TRANSLATION:${resolved}` : 'TRANSLATION:unsupported',
+        verse: null,
+        translationHeard: heard,
+      };
+    }
+
     const isStory = rawResponse.startsWith('STORY:');
     const cleanReference = isStory ? rawResponse.replace('STORY:', '') : rawResponse;
 
-    const verseResponse = await fetch(`https://bible-api.com/${encodeURIComponent(cleanReference)}?translation=kjv`);
-    const verseData = await verseResponse.json();
+    const verseData = await fetchVerseInTranslation(cleanReference, data.translation);
 
-    if (verseData.error) {
+    if (!verseData) {
       return { success: true, reference: cleanReference, verse: null, isStory };
     }
 
@@ -1942,13 +2018,11 @@ Nothing else. No explanation. No punctuation after.`;
   }
 });
 
-ipcMain.handle('ai-fetch-verse', async (_event, reference) => {
+ipcMain.handle('ai-fetch-verse', async (_event, reference, translation) => {
   try {
-    const url = `https://bible-api.com/${encodeURIComponent(reference)}?translation=kjv`;
-    const response = await fetch(url);
-    const data = await response.json();
-    if (data.error) return { success: false, error: data.error };
-    return { success: true, verse: data };
+    const verse = await fetchVerseInTranslation(reference, translation);
+    if (!verse) return { success: false, error: 'Not found' };
+    return { success: true, verse };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -2027,6 +2101,19 @@ ipcMain.handle('save-settings', async (_event, updates) => {
         .insert([{ ...updates, church_id: churchId }]);
       if (error) throw error;
     }
+
+    // church_settings.church_name is a free-form settings field; churches.name is the
+    // canonical name (what sign-in loads into currentChurch, and what the welcome-back
+    // screen reads) -- keep them in sync so a rename actually takes effect everywhere.
+    const newName = (updates.church_name || '').trim();
+    if (newName && churchId) {
+      const { error: renameError } = await supabase
+        .from('churches')
+        .update({ name: newName })
+        .eq('id', churchId);
+      if (!renameError && currentChurch) currentChurch.name = newName;
+    }
+
     return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
