@@ -460,7 +460,11 @@
 
   contentBadge.classList.add(`badge-${badgePosition}`);
 
+  // 'off' (Settings > Screens > Content Badge) turns the badge off for this screen entirely.
+  const badgeDisabled = badgePosition === 'off';
+
   function showContentBadge(type) {
+    if (badgeDisabled) return;
     const style = CONTENT_BADGE_STYLES[type];
     if (!style) return;
     contentBadgeIcon.src = style.src;

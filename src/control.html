@@ -8593,8 +8593,9 @@ function renderScreenCards() {
               <option value="top-right" ${config.badge_position === 'top-right' ? 'selected' : ''}>Top Right</option>
               <option value="bottom-right" ${config.badge_position === 'bottom-right' ? 'selected' : ''}>Bottom Right</option>
               <option value="bottom-left" ${config.badge_position === 'bottom-left' ? 'selected' : ''}>Bottom Left</option>
+              <option value="off" ${config.badge_position === 'off' ? 'selected' : ''}>Off (hide badge)</option>
             </select>
-            <div style="color: #6b7280; font-size: 11px; margin-top: 6px;">Where the Bible/song/prayer icon badge shows on this screen. Bottom Left can overlap the "Up Next" indicator on Stage/Full profiles.</div>
+            <div style="color: #6b7280; font-size: 11px; margin-top: 6px;">Where the Bible/song/prayer icon badge shows on this screen, or Off to hide it. Bottom Left can overlap the "Up Next" indicator on Stage/Full profiles.</div>
           </div>
         ` : `
           <div style="color: #4b5563; font-size: 13px; text-align: center; padding: 4px 0;">Toggle on to activate this screen</div>
