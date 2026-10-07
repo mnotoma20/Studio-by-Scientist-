@@ -2523,7 +2523,11 @@ function findSoffice() {
 function convertPptxToPdf(soffice, filePath, outDir) {
   return new Promise((resolve, reject) => {
     // Isolated user profile avoids "LibreOffice already running" conflicts
-    const profile = 'file://' + path.join(outDir, 'lo-profile');
+    // Must be a real file URL. 'file://' + a Windows path gives "file://C:\Users\..." (backslashes,
+    // wrong slash count), which makes soffice misparse its own -env: args and fail with a bogus
+    // "bootstrap.ini is corrupt" error even on a healthy install. pathToFileURL yields
+    // "file:///C:/Users/..." on Windows and is identical to the old value on macOS/Linux.
+    const profile = require('url').pathToFileURL(path.join(outDir, 'lo-profile')).href;
     execFile(
       soffice,
       ['--headless', '--norestore', `-env:UserInstallation=${profile}`,
