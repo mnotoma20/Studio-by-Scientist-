@@ -2207,6 +2207,10 @@ ipcMain.on('reload-screen', async (event, { screenIndex }) => {
 
   // Close existing window
   const existing = displayWindows.find(d => d.screenIndex === screenIndex);
+  // Must be read before closing: with a single screen, the window being replaced is the only
+  // visible one, so checking visibility after the close would always say "not live" and the
+  // replacement would never be shown -- the screen vanished until End Live / Go Live again.
+  const wasLive = displayWindows.some(d => d.window && !d.window.isDestroyed() && d.window.isVisible());
   if (existing && !existing.window.isDestroyed()) existing.window.close();
 
   // Small delay to let the closed event clean up displayWindows
@@ -2252,7 +2256,7 @@ ipcMain.on('reload-screen', async (event, { screenIndex }) => {
   if (!displayWindow && config.content_profile !== 'stage' && config.content_profile !== 'confidence') displayWindow = win;
 
   // If live session is running, show immediately fullscreen
-  if (displayWindows.some(d => d.window.isVisible())) {
+  if (wasLive) {
     win.show();
     win.setFullScreen(true);
     // See showAllDisplayWindows() -- show()/setFullScreen() grab OS focus on their own and
