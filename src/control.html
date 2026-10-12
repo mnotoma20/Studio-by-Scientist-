@@ -7455,6 +7455,7 @@ async function startListening() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
     isListening = true;
     updateMicUI(true);
+    startLevelMonitor(stream);
     fullTranscript = '';
 
     function startChunk() {
@@ -7485,6 +7486,14 @@ async function startListening() {
           stopListening();
           showUpgradeModal(result.error);
           return;
+        }
+
+        if (!result.success) {
+          // Used to fail silently, so a broken connection or server problem looked exactly like
+          // "listening but nothing is said".
+          const det = document.getElementById('detectionStatus');
+          if (det) det.textContent = `⚠️ Transcription failed: ${result.error || 'unknown error'}`;
+          console.error('transcribe-audio failed:', result.error);
         }
 
         if (result.success && result.text.trim()) {
@@ -7521,8 +7530,49 @@ function stopListening() {
   isListening = false;
   if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
   mediaRecorder = null;
+  stopLevelMonitor();
   stopVerseCompletionTracking();
   updateMicUI(false);
+}
+
+// Live input level next to "Listening...", plus a warning when nothing is coming in. Without
+// this, a muted/wrong/too-quiet input (e.g. a line-in that isn't actually receiving signal)
+// looks identical to a working one: "Listening..." shows and nothing ever happens.
+let _levelCtx = null;
+let _levelTimer = null;
+
+function stopLevelMonitor() {
+  if (_levelTimer) { clearInterval(_levelTimer); _levelTimer = null; }
+  if (_levelCtx) { try { _levelCtx.close(); } catch (e) {} _levelCtx = null; }
+}
+
+function startLevelMonitor(stream) {
+  stopLevelMonitor();
+  try {
+    _levelCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (_levelCtx.state === 'suspended') _levelCtx.resume();
+    const analyser = _levelCtx.createAnalyser();
+    analyser.fftSize = 1024;
+    _levelCtx.createMediaStreamSource(stream).connect(analyser);
+    const buf = new Uint8Array(analyser.fftSize);
+    let quietMs = 0;
+    _levelTimer = setInterval(() => {
+      const status = document.getElementById('listeningStatus');
+      if (!status || !isListening) return;
+      analyser.getByteTimeDomainData(buf);
+      let peak = 0;
+      for (let i = 0; i < buf.length; i++) peak = Math.max(peak, Math.abs(buf[i] - 128) / 128);
+      quietMs = peak < 0.01 ? quietMs + 250 : 0;
+      const bars = Math.min(10, Math.round(peak * 40));
+      const meter = '▮'.repeat(bars) + '<span style="color:#374151;">' + '▯'.repeat(10 - bars) + '</span>';
+      const warn = quietMs >= 6000
+        ? '<div style="color:#f59e0b;font-size:12px;margin-top:6px;">⚠️ No sound is coming in from this input. Check the Audio Input choice above and the input level in your computer\'s sound settings.</div>'
+        : '';
+      status.innerHTML = `<span style="color:#ec4899;">● Listening...</span> <span style="color:#10b981;letter-spacing:1px;">${meter}</span>${warn}`;
+    }, 250);
+  } catch (e) {
+    console.warn('Level monitor unavailable:', e.message);
+  }
 }
 
 function updateMicUI(listening) {
