@@ -1540,12 +1540,19 @@ function parseBookChapterVerse(query) {
 // ESV API (api.esv.org) -- free developer key from
 // https://api.esv.org/account/create-application/, added to .env as ESV_API_KEY.
 async function fetchEsvPassage(query) {
+  // A local .env key only exists in a dev checkout (packaged builds exclude .env, so installed
+  // apps never have one) -- everywhere else the admin server holds the key and forwards this.
   const key = process.env.ESV_API_KEY;
-  if (!key) throw new Error('ESV_API_KEY is not set -- sign up at https://api.esv.org and add it to .env');
-  const url = `https://api.esv.org/v3/passage/text/?q=${encodeURIComponent(query)}&include-verse-numbers=true&include-footnotes=false&include-headings=false&include-short-copyright=false&include-passage-references=false`;
-  const res = await fetch(url, { headers: { Authorization: `Token ${key}` } });
-  if (!res.ok) throw new Error(`ESV API request failed (${res.status})`);
-  const data = await res.json();
+  let data;
+  if (key) {
+    const url = `https://api.esv.org/v3/passage/text/?q=${encodeURIComponent(query)}&include-verse-numbers=true&include-footnotes=false&include-headings=false&include-short-copyright=false&include-passage-references=false`;
+    const res = await fetch(url, { headers: { Authorization: `Token ${key}` } });
+    if (!res.ok) throw new Error(`ESV API request failed (${res.status})`);
+    data = await res.json();
+  } else {
+    data = await adminPost('/api/bible/passage', { provider: 'esv', q: query });
+    if (data._status < 200 || data._status >= 300) throw new Error(data.error || `ESV request failed (${data._status})`);
+  }
   const raw = (data.passages || [])[0] || '';
   const tokens = raw.split(/\[?(\d+)\]?\s+/);
   const { book, chapter } = parseBookChapterVerse(query);
@@ -1591,7 +1598,6 @@ function stripBalancedSpan(html, className) {
 
 async function fetchNltPassage(query) {
   const key = process.env.NLT_API_KEY;
-  if (!key) throw new Error('NLT_API_KEY is not set -- sign up at https://api.nlt.to and add it to .env');
   const { book, chapter, verseRange } = parseBookChapterVerse(query);
   // NLT's book naming differs from bible-api.com's ("Song of Solomon") for
   // exactly one book -- confirmed by testing all 66 books against the live API.
@@ -1600,10 +1606,18 @@ async function fetchNltPassage(query) {
   // version=NLT is required -- omitting it, the API inconsistently defaults
   // some books (2 Samuel, Genesis, ...) to NTV, Tyndale's Spanish sister
   // translation, instead of English NLT. Confirmed against the live API.
-  const url = `https://api.nlt.to/api/passages?ref=${encodeURIComponent(nltRef)}&version=NLT&key=${key}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`NLT API request failed (${res.status})`);
-  const html = await res.text();
+  let html;
+  if (key) {
+    const url = `https://api.nlt.to/api/passages?ref=${encodeURIComponent(nltRef)}&version=NLT&key=${key}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`NLT API request failed (${res.status})`);
+    html = await res.text();
+  } else {
+    // No local key (installed app) -- the admin server holds it; same version=NLT handling there.
+    const r = await adminPost('/api/bible/passage', { provider: 'nlt', ref: nltRef });
+    if (r._status < 200 || r._status >= 300) throw new Error(r.error || `NLT request failed (${r._status})`);
+    html = r.html;
+  }
   // Footnote markers/content must be removed before stripping tags, or the
   // footnote text itself (not just its wrapper tags) ends up polluting the
   // verse -- confirmed against a live response for John 3:16.

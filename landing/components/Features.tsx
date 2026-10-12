@@ -16,7 +16,7 @@ const FEATURES = [
   {
     icon: BookOpen, emoji: '📖',
     title: '66 Books. Every Verse.',
-    description: 'Complete KJV Bible library built in. Always offline. Always instant.',
+    description: 'Search any passage in seconds, with 9 free Bible translations to choose from.',
     span: 'lg:col-span-1',
     color: '#ec4899',
     size: 'small',
