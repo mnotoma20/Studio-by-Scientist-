@@ -2607,7 +2607,77 @@ async function renderPdfToImages(pdfPath, scale = 2.0) {
 // parser as a fallback) -- factored out of the import-pptx handler so the
 // live file-watcher below can re-run the exact same conversion when the
 // source file changes on disk, instead of requiring a manual re-import.
+// Windows only: have PowerPoint itself draw the slides (exact fonts, wrapping and layout --
+// LibreOffice substitutes fonts it doesn't have, which re-wraps text, e.g. "PRAYER 1" breaking
+// onto two lines). Needs desktop PowerPoint installed; anything that goes wrong returns null so
+// the caller falls back to LibreOffice. A running PowerPoint is attached to, not closed.
+const POWERPOINT_EXPORT_PS = `
+$ErrorActionPreference = 'Stop'
+$in  = $env:SBS_PPTX_IN
+$out = $env:SBS_PPTX_OUT
+$wasRunning = [bool](Get-Process POWERPNT -ErrorAction SilentlyContinue)
+$ppt = New-Object -ComObject PowerPoint.Application
+$pres = $null
+try {
+  $pres = $ppt.Presentations.Open($in, -1, 0, 0)
+  $w = [double]$pres.PageSetup.SlideWidth
+  $h = [double]$pres.PageSetup.SlideHeight
+  $px = 1600
+  $py = [int][math]::Round($px * $h / $w)
+  $pres.Export($out, 'PNG', $px, $py)
+} finally {
+  if ($pres) { try { $pres.Close() } catch {} }
+  if (-not $wasRunning) { try { $ppt.Quit() } catch {} }
+}
+`;
+
+async function convertPptxViaPowerPoint(filePath) {
+  if (process.platform !== 'win32') return null;
+  let tmpDir = null;
+  try {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'sbs-ppt-com-'));
+    const outDir = path.join(tmpDir, 'out');
+    fs.mkdirSync(outDir);
+    const ps1 = path.join(tmpDir, 'export.ps1');
+    fs.writeFileSync(ps1, POWERPOINT_EXPORT_PS, 'utf8');
+    await new Promise((resolve, reject) => {
+      execFile(
+        'powershell.exe',
+        ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', ps1],
+        { timeout: 150000, windowsHide: true, env: { ...process.env, SBS_PPTX_IN: filePath, SBS_PPTX_OUT: outDir } },
+        (err, _stdout, stderr) => (err ? reject(new Error((stderr || err.message).toString().trim().slice(0, 300))) : resolve())
+      );
+    });
+    const files = fs.readdirSync(outDir)
+      .map(f => ({ f, m: /^Slide(\d+)\.png$/i.exec(f) }))
+      .filter(x => x.m)
+      .sort((a, b) => parseInt(a.m[1], 10) - parseInt(b.m[1], 10));
+    if (!files.length) return null;
+    const slides = files.map((x, i) => ({
+      index: i + 1,
+      image: 'data:image/png;base64,' + fs.readFileSync(path.join(outDir, x.f)).toString('base64')
+    }));
+    // PNG header: width at byte 16, height at byte 20 (big-endian)
+    const head = fs.readFileSync(path.join(outDir, files[0].f)).subarray(0, 24);
+    const w = head.readUInt32BE(16), h = head.readUInt32BE(20);
+    const aspect = w && h ? w / h : 16 / 9;
+    return {
+      success: true, mode: 'image', slides,
+      filename: path.basename(filePath, path.extname(filePath)),
+      slideW: Math.round(aspect * 1000), slideH: 1000
+    };
+  } catch (err) {
+    console.error('PowerPoint export failed, falling back to LibreOffice:', err.message);
+    return null;
+  } finally {
+    if (tmpDir) fs.rm(tmpDir, { recursive: true, force: true }, () => {});
+  }
+}
+
 async function convertPptxFile(filePath) {
+  const viaPowerPoint = await convertPptxViaPowerPoint(filePath);
+  if (viaPowerPoint) return viaPowerPoint;
+
   // ── High-fidelity path: LibreOffice → PDF → PNG per slide ──
   const soffice = findSoffice();
   if (soffice) {
