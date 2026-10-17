@@ -993,7 +993,13 @@
       <img src="../assets/logo.png" alt="" style="width: 32px; height: 32px; object-fit: contain;">
       <span style="font-weight: 800; font-size: 22px; background: linear-gradient(135deg, #a78bfa 0%, #ec4899 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; letter-spacing: 1px;">STUDIO</span>
     </div>
-    <div style="margin-left: auto;">
+    <div style="margin-left: auto; display: flex; align-items: center; gap: 10px;">
+      <button id="layoutBtn" onclick="openLayoutEditor()" title="Move and resize the text on the projector" style="
+        padding: 8px 16px; border-radius: 20px; cursor: pointer;
+        font-weight: 700; font-size: 12px; letter-spacing: 1px;
+        background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.4); color: #c4b5fd;">
+        ⤢ POSITION
+      </button>
       <button id="goLiveBtn" onclick="toggleLive()" style="
         padding: 8px 22px; border-radius: 20px; border: none; cursor: pointer;
         font-weight: 700; font-size: 13px; letter-spacing: 1px;
@@ -1001,6 +1007,35 @@
         color: #fff; transition: opacity 0.2s;">
         ● GO LIVE
       </button>
+    </div>
+  </div>
+
+  <!-- POSITION & SIZE EDITOR -->
+  <div id="layoutModal" style="display:none; position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,0.78); align-items:center; justify-content:center;">
+    <div style="background:#1a1a2e; border:1px solid rgba(167,139,250,0.4); border-radius:14px; padding:20px; width:780px; max-width:94vw; box-shadow:0 30px 80px rgba(0,0,0,0.6);">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <div style="font-size:18px; font-weight:800; color:#fff;">Position &amp; size</div>
+        <button onclick="closeLayoutEditor()" style="background:none; border:none; color:#9ca3af; font-size:20px; cursor:pointer;">✕</button>
+      </div>
+      <div style="color:#9ca3af; font-size:12px; margin-bottom:12px;">Drag the box to move it and drag its handles to resize. The projector updates as you go. The text fits inside the box.</div>
+      <div id="layoutCanvas" style="position:relative; width:100%; aspect-ratio:16/9; background:#000; border:1px solid #2d2d4a; border-radius:8px; overflow:hidden; user-select:none; touch-action:none;">
+        <div id="layoutBox" style="position:absolute; border:2px dashed #a78bfa; background:rgba(167,139,250,0.14); cursor:move; display:flex; align-items:center; justify-content:center; color:#fff; font-weight:900; font-size:22px; text-align:center; font-family:'Arial Black',Arial,sans-serif; box-sizing:border-box; padding:6px;">
+          <span style="pointer-events:none;">God bless everyone</span>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:14px; margin-top:14px; flex-wrap:wrap;">
+        <label style="display:flex; align-items:center; gap:8px; color:#9ca3af; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">
+          Font size
+          <input type="number" id="layoutFontSize" min="40" max="300" value="140" oninput="layoutSetFontSize(this.value)"
+            style="width:80px; padding:6px 10px; background:rgba(26,26,46,0.9); border:1px solid rgba(167,139,250,0.4); border-radius:8px; color:#fff; font-size:16px; font-weight:700; text-align:center; outline:none;">
+        </label>
+        <button onclick="layoutFullScreen()" style="padding:8px 14px; background:rgba(45,45,74,0.6); border:1px solid rgba(167,139,250,0.3); border-radius:8px; color:#c4b5fd; font-size:12px; font-weight:700; cursor:pointer;">Fill screen</button>
+        <button onclick="layoutResetCentered()" style="padding:8px 14px; background:rgba(45,45,74,0.6); border:1px solid rgba(167,139,250,0.3); border-radius:8px; color:#c4b5fd; font-size:12px; font-weight:700; cursor:pointer;">Reset to default</button>
+        <label id="layoutSaveRow" style="display:none; align-items:center; gap:6px; color:#d1d5db; font-size:12px;">
+          <input type="checkbox" id="layoutSaveForItem" checked> Remember for this schedule item
+        </label>
+        <button onclick="closeLayoutEditor()" style="margin-left:auto; padding:8px 22px; background:linear-gradient(135deg,#ec4899,#a78bfa); border:none; border-radius:8px; color:#fff; font-weight:700; cursor:pointer;">Done</button>
+      </div>
     </div>
   </div>
 
@@ -3221,6 +3256,144 @@ document.querySelectorAll('.menu-item').forEach((item, index) => {
 });
 
 // ============================================
+// POSITION & SIZE EDITOR
+// ============================================
+// A PowerPoint-style box: drag to move, drag handles to resize. Values are percent of the
+// screen, sent live to every projector ('set-box-layout'), where the text centers and
+// auto-fits inside the box. On the Schedule tab the layout can be remembered per item.
+const LAYOUT_DEFAULT = { x: 15, y: 20, w: 70, h: 60 };
+const LAYOUT_MIN = 8;
+let _layout = null;          // layout currently shown in the editor
+let _layoutDrag = null;      // { mode, startX, startY, start }
+let _layoutRaf = null;
+let _layoutSaveTimer = null;
+
+function layoutScheduleItem() {
+  const tab = document.querySelector('.menu-item.active')?.textContent.trim() || '';
+  if (!tab.includes('Schedule')) return null;
+  return scheduleItems[currentScheduleItemIndex] || null;
+}
+
+function openLayoutEditor() {
+  const item = layoutScheduleItem();
+  _layout = (item && item.content && item.content.layout) ? { ...item.content.layout } : { ...LAYOUT_DEFAULT };
+  document.getElementById('layoutSaveRow').style.display = item ? 'flex' : 'none';
+  const fs = document.getElementById('layoutFontSize');
+  if (fs) fs.value = scheduleFontSize;
+  document.getElementById('layoutModal').style.display = 'flex';
+  renderLayoutBox();
+  sendLayout();
+}
+
+function closeLayoutEditor() {
+  document.getElementById('layoutModal').style.display = 'none';
+  _layoutDrag = null;
+}
+
+function renderLayoutBox() {
+  const box = document.getElementById('layoutBox');
+  if (!box || !_layout) return;
+  box.style.left = _layout.x + '%'; box.style.top = _layout.y + '%';
+  box.style.width = _layout.w + '%'; box.style.height = _layout.h + '%';
+}
+
+function sendLayout() {
+  if (_layoutRaf) return;
+  _layoutRaf = requestAnimationFrame(() => {
+    _layoutRaf = null;
+    ipcRenderer.send('set-box-layout', _layout);
+  });
+}
+
+function persistLayoutForItem(clear) {
+  const item = layoutScheduleItem();
+  const save = document.getElementById('layoutSaveForItem');
+  if (!item || !(save && save.checked)) return;
+  clearTimeout(_layoutSaveTimer);
+  _layoutSaveTimer = setTimeout(() => {
+    item.content = { ...(item.content || {}) };
+    if (clear) delete item.content.layout; else item.content.layout = { ..._layout };
+    ipcRenderer.invoke('save-schedule-item', item);
+  }, 400);
+}
+
+function layoutSetFontSize(v) {
+  const n = parseInt(v);
+  if (!n) return;
+  scheduleFontSize = n;
+  const slider = document.getElementById('scheduleFontSizeSlider');
+  if (slider) slider.value = n;
+  const label = document.getElementById('scheduleFontSizeLabel');
+  if (label) label.textContent = n + 'px';
+  ipcRenderer.send('update-font-size', n);
+}
+
+function layoutFullScreen() {
+  _layout = { x: 0, y: 0, w: 100, h: 100 };
+  renderLayoutBox(); sendLayout(); persistLayoutForItem(false);
+}
+
+function layoutResetCentered() {
+  _layout = { ...LAYOUT_DEFAULT };
+  renderLayoutBox();
+  ipcRenderer.send('set-box-layout', null);
+  persistLayoutForItem(true);
+}
+
+(function initLayoutEditor() {
+  const canvas = document.getElementById('layoutCanvas');
+  const box = document.getElementById('layoutBox');
+  if (!canvas || !box) return;
+
+  ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'].forEach(h => {
+    const el = document.createElement('div');
+    el.dataset.handle = h;
+    const pos = {
+      nw: 'left:-7px;top:-7px;cursor:nwse-resize', n: 'left:calc(50% - 7px);top:-7px;cursor:ns-resize',
+      ne: 'right:-7px;top:-7px;cursor:nesw-resize', e: 'right:-7px;top:calc(50% - 7px);cursor:ew-resize',
+      se: 'right:-7px;bottom:-7px;cursor:nwse-resize', s: 'left:calc(50% - 7px);bottom:-7px;cursor:ns-resize',
+      sw: 'left:-7px;bottom:-7px;cursor:nesw-resize', w: 'left:-7px;top:calc(50% - 7px);cursor:ew-resize'
+    }[h];
+    el.style.cssText = 'position:absolute;width:14px;height:14px;background:#fff;border:2px solid #a78bfa;border-radius:3px;box-sizing:border-box;' + pos;
+    box.appendChild(el);
+  });
+
+  box.addEventListener('pointerdown', (e) => {
+    if (!_layout) return;
+    e.preventDefault();
+    _layoutDrag = { mode: e.target.dataset.handle || 'move', startX: e.clientX, startY: e.clientY, start: { ..._layout } };
+    try { box.setPointerCapture(e.pointerId); } catch (err) { /* synthetic/stale pointer: moves still arrive */ }
+  });
+
+  box.addEventListener('pointermove', (e) => {
+    if (!_layoutDrag) return;
+    const r = canvas.getBoundingClientRect();
+    const dx = (e.clientX - _layoutDrag.startX) / r.width * 100;
+    const dy = (e.clientY - _layoutDrag.startY) / r.height * 100;
+    const st = _layoutDrag.start;
+    let { x, y, w, h } = st;
+    const m = _layoutDrag.mode;
+    if (m === 'move') {
+      x = Math.min(Math.max(st.x + dx, 0), 100 - st.w);
+      y = Math.min(Math.max(st.y + dy, 0), 100 - st.h);
+    } else {
+      if (m.includes('e')) w = Math.min(Math.max(st.w + dx, LAYOUT_MIN), 100 - st.x);
+      if (m.includes('s')) h = Math.min(Math.max(st.h + dy, LAYOUT_MIN), 100 - st.y);
+      if (m.includes('w')) { const nx = Math.min(Math.max(st.x + dx, 0), st.x + st.w - LAYOUT_MIN); w = st.w + (st.x - nx); x = nx; }
+      if (m.includes('n')) { const ny = Math.min(Math.max(st.y + dy, 0), st.y + st.h - LAYOUT_MIN); h = st.h + (st.y - ny); y = ny; }
+    }
+    const r1 = (n) => Math.round(n * 10) / 10;
+    _layout = { x: r1(x), y: r1(y), w: r1(w), h: r1(h) };
+    renderLayoutBox();
+    sendLayout();
+  });
+
+  const end = () => { if (_layoutDrag) { _layoutDrag = null; persistLayoutForItem(false); } };
+  box.addEventListener('pointerup', end);
+  box.addEventListener('pointercancel', end);
+})();
+
+// ============================================
 // KEYBOARD SHORTCUTS ⌨️
 // ============================================
 
@@ -3236,8 +3409,10 @@ document.addEventListener('keydown', (e) => {
     return;
   }
 
-  // Don't trigger other shortcuts if typing in input field
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+  // Don't trigger other shortcuts if typing in a text field. The rich-text editors (prayer,
+  // custom, announcement) are contenteditable divs, not INPUT/TEXTAREA -- without the
+  // isContentEditable check, Space was swallowed as "advance schedule" and never typed.
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT' || e.target.isContentEditable) {
     return;
   }
   
@@ -4736,6 +4911,9 @@ function formatCountdown(seconds) {
 function displayScheduleItem() {
   const item = scheduleItems[currentScheduleItemIndex];
   if (!item) return;
+  // Each item remembers its own Position & size (null = default centered), sent before the content
+  // so the projector fits the text to the right box.
+  ipcRenderer.send('set-box-layout', (item.content && item.content.layout) || null);
 
   if (item.type === 'prayer') {
     const mode = item.content?.mode || 'combined';

@@ -723,6 +723,12 @@ ipcMain.on('display-verse', (event, verseData) => {
   trackEvent('verse_displayed', { reference: verseData.reference || verseData.ref, translation: verseData.translation });
 });
 
+// Operator-positioned text box (Position & size editor): {x,y,w,h} percent of the screen, or null
+// for the default centered layout.
+ipcMain.on('set-box-layout', (_event, layout) => {
+  broadcastToDisplays('set-box-layout', layout || null);
+});
+
 ipcMain.on('clear-screen', () => {
   console.log('🧹 Clear display');
   broadcastToDisplays('clear-display', null);

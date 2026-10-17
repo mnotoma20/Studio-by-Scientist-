@@ -70,6 +70,11 @@
       z-index: 10; /* stays readable above the free-plan watermark tiled behind it */
     }
 
+    /* Operator-positioned text box (Position & size editor in the control window). When set,
+       #content becomes a fixed box at x/y/w/h percent of the screen and its text centers inside
+       it; children take the full box width so wrapping follows the box, not the text. */
+    body.boxed #content > * { width: 100%; }
+
     /* Free-plan watermark -- a diagonal tiled repeat of the logo + "STUDIO BY
        SCIENTIST" text (drawn together onto one canvas tile by
        buildWatermarkTile(), so it reads unmistakably as a watermark rather
@@ -1138,6 +1143,38 @@ function applyThemeColors(themeData) {
     document.getElementById('content').style.transform = '';
   }
 
+  // ---- Operator-positioned text box ----
+  let boxLayout = null; // { x, y, w, h } in percent of the screen, or null = default (centered, full screen)
+
+  function availH() {
+    return boxLayout ? window.innerHeight * (boxLayout.h / 100) : window.innerHeight;
+  }
+
+  function applyBoxLayout() {
+    const c = document.getElementById('content');
+    const props = ['position', 'left', 'top', 'width', 'height', 'maxWidth', 'display', 'flexDirection', 'alignItems', 'justifyContent', 'overflow'];
+    if (boxLayout) {
+      Object.assign(c.style, {
+        position: 'fixed', left: boxLayout.x + '%', top: boxLayout.y + '%',
+        width: boxLayout.w + '%', height: boxLayout.h + '%', maxWidth: 'none',
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        // "safe" keeps overflow growing downward so scrollHeight stays measurable for auto-fit
+        justifyContent: 'safe center', overflow: 'hidden'
+      });
+      document.body.classList.add('boxed');
+    } else {
+      props.forEach(p => { c.style[p] = ''; });
+      document.body.classList.remove('boxed');
+    }
+  }
+
+  ipcRenderer.on('set-box-layout', (_event, layout) => {
+    const ok = layout && [layout.x, layout.y, layout.w, layout.h].every(n => typeof n === 'number' && isFinite(n));
+    boxLayout = ok ? layout : null;
+    applyBoxLayout();
+    autoFitContent();
+  });
+
   function autoFitContent() {
     const content = document.getElementById('content');
     content.style.transform = '';
@@ -1151,7 +1188,7 @@ function applyThemeColors(themeData) {
     // Binary-search the largest verse font that still fits the screen height,
     // so the verse uses the whole display instead of floating in the middle.
     if (wordCount > 0 && !vt?.dataset.userSize) {
-      const targetH = window.innerHeight - 16;
+      const targetH = availH() - 16;
       let lo = 60, hi = 480, best = 60;
       for (let i = 0; i < 16; i++) {
         const mid = Math.floor((lo + hi) / 2);
@@ -1167,14 +1204,29 @@ function applyThemeColors(themeData) {
       return;
     }
 
-    // Lyrics / prayer / manual size → keep their size, shrink only if overflowing
-    const maxH = window.innerHeight - 24;
+    // Lyrics / prayer / manual size → keep their size, shrink only if overflowing.
+    // Shrinking is remembered per element (baseSize/shrunkTo) so a later call -- e.g. the operator
+    // enlarging the Position & size box -- starts from the original size and can grow back,
+    // instead of staying at whatever the smallest box forced. If something else has since set a
+    // new size (the element no longer matches shrunkTo), that new size is the base.
+    const els = content.querySelectorAll('.verse-text, .verse-reference, .verse-translation, .prayer-combined-title, .prayer-combined-text, .prayer-verse-ref, .prayer-verse-text');
+    const baseOf = (el) => {
+      const cur = parseFloat(window.getComputedStyle(el).fontSize);
+      const shrunk = parseFloat(el.dataset.shrunkTo || '');
+      const base = parseFloat(el.dataset.baseSize || '');
+      return (isFinite(shrunk) && isFinite(base) && Math.abs(cur - shrunk) < 0.5) ? base : cur;
+    };
+    const bases = new Map();
+    els.forEach(el => { const b = baseOf(el); bases.set(el, b); el.style.fontSize = b + 'px'; delete el.dataset.shrunkTo; delete el.dataset.baseSize; });
+    const maxH = availH() - 24;
     if (content.scrollHeight <= maxH) return;
     const scale = maxH / content.scrollHeight;
-    const MIN = 64;
-    content.querySelectorAll('.verse-text, .verse-reference, .verse-translation, .prayer-combined-title, .prayer-combined-text, .prayer-verse-ref, .prayer-verse-text').forEach(el => {
-      const current = parseFloat(window.getComputedStyle(el).fontSize);
-      el.style.fontSize = Math.max(MIN, Math.floor(current * scale)) + 'px';
+    const MIN = boxLayout ? 24 : 64; // a small operator box must still hold its text, not clip it
+    els.forEach(el => {
+      const b = bases.get(el);
+      const next = Math.max(MIN, Math.floor(b * scale));
+      el.style.fontSize = next + 'px';
+      el.dataset.baseSize = String(b); el.dataset.shrunkTo = String(next);
     });
   }
 
