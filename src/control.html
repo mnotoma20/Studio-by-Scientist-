@@ -7410,10 +7410,9 @@ async function displayVerseAndUpdateState(verse) {
 // ---- NAVIGATION ----
 async function handleNavCommand(navCommand) {
   const statusEl = document.getElementById('detectionStatus');
-  if (!currentDisplayState.book) {
-    if (statusEl) statusEl.textContent = '⚠️ No verse currently displayed';
-    return;
-  }
+  // Nothing to navigate from. "Next verse" / "verse 3" / "go back" come up constantly in ordinary
+  // preaching, so warning every time just spammed the operator -- ignore them quietly instead.
+  if (!currentDisplayState.book) return;
 
   let targetReference = null;
   if (navCommand === 'NAV:NEXT') {
@@ -8998,13 +8997,17 @@ function showSettingsToast(message, isError = false) {
 
 function openLegalDoc(type) {
   const { shell } = require('electron');
-  const path = require('path');
+  const fs = require('fs'), os = require('os'), path = require('path');
   const files = {
-    terms: 'terms-of-service.md',
-    privacy: 'privacy-policy.md',
+    terms: 'terms-of-service.html',
+    privacy: 'privacy-policy.html',
     dpa: 'data-processing-agreement.md'
   };
-  shell.openPath(path.join(__dirname, 'screens', 'legal', files[type]));
+  // Packaged apps keep these files inside app.asar, which the OS can't open directly -- copy the
+  // page out to a temp file (Electron's fs reads from the archive) and open that.
+  const src = path.join(__dirname, 'screens', 'legal', files[type]);
+  const dest = path.join(os.tmpdir(), 'studio-by-scientist-' + files[type]);
+  try { fs.copyFileSync(src, dest); shell.openPath(dest); } catch (err) { console.error('Could not open', src, err.message); }
 }
 
 // ============================================

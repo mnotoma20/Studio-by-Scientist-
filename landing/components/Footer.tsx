@@ -2,7 +2,14 @@
 
 import Image from 'next/image'
 
-const links = ['Features', 'How It Works', 'Pricing', 'Download', 'Terms', 'Privacy']
+const links = [
+  { label: 'Features', href: '/#features' },
+  { label: 'How It Works', href: '/#how-it-works' },
+  { label: 'Pricing', href: '/#pricing' },
+  { label: 'Download', href: '/#download' },
+  { label: 'Terms', href: '/terms' },
+  { label: 'Privacy', href: '/privacy' },
+]
 
 function TwitterIcon() {
   return (
@@ -52,10 +59,10 @@ export default function Footer() {
           {/* Links */}
           <nav className="flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
             {links.map(link => (
-              <a key={link} href="#"
+              <a key={link.label} href={link.href}
                 className="text-sm transition-colors duration-200 hover:text-white"
                 style={{ color: '#6b7280' }}>
-                {link}
+                {link.label}
               </a>
             ))}
           </nav>

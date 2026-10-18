@@ -177,3 +177,14 @@ body {
   0%, 100% { text-shadow: 0 0 20px rgba(167,139,250,0.5); }
   50% { text-shadow: 0 0 40px rgba(167,139,250,0.8), 0 0 80px rgba(236,72,153,0.4); }
 }
+
+/* Legal pages (/terms, /privacy) — generated HTML from legal/*.md */
+.legal { color: #d1d5db; line-height: 1.75; font-size: 16px; }
+.legal h1 { color: #fff; font-family: 'Playfair Display', serif; font-size: 40px; font-weight: 800; margin: 0 0 8px; }
+.legal h2 { color: #c4b5fd; font-size: 22px; font-weight: 700; margin: 40px 0 10px; }
+.legal h3 { color: #fff; font-size: 17px; font-weight: 600; margin: 24px 0 8px; }
+.legal p { margin: 0 0 14px; }
+.legal ul { margin: 0 0 16px; padding-left: 22px; list-style: disc; }
+.legal li { margin-bottom: 6px; }
+.legal strong { color: #fff; }
+.legal a { color: #a78bfa; text-decoration: underline; }

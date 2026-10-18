@@ -345,14 +345,18 @@
   <script>
   const { ipcRenderer } = require('electron');
 
-  function openLink(type) {
+  // Packaged apps keep these files inside app.asar, which the OS can't open directly -- copy the
+  // page out to a temp file (Electron's fs reads from the archive) and open that.
+  function openLegalFile(srcPath) {
     const { shell } = require('electron');
+    const fs = require('fs'), os = require('os'), path = require('path');
+    const dest = path.join(os.tmpdir(), 'studio-by-scientist-' + path.basename(srcPath));
+    try { fs.copyFileSync(srcPath, dest); shell.openPath(dest); } catch (err) { console.error('Could not open', srcPath, err.message); }
+  }
+
+  function openLink(type) {
     const path = require('path');
-    if (type === 'terms') {
-      shell.openPath(path.join(__dirname, 'legal', 'terms-of-service.md'));
-    } else {
-      shell.openPath(path.join(__dirname, 'legal', 'privacy-policy.md'));
-    }
+    openLegalFile(path.join(__dirname, 'legal', type === 'terms' ? 'terms-of-service.html' : 'privacy-policy.html'));
   }
 
   const form = document.getElementById('signinForm');
