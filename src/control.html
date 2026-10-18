@@ -7906,6 +7906,7 @@ function renderLiveCandidates(cands, ref) {
   liveCandTimer = setTimeout(() => { panel.style.display = 'none'; }, 12000);
 }
 
+let liveFallbackReason = '';
 async function startListening() {
   if (!isPaidPlan()) { showUpgradeModal('Live Mode (AI voice detection) requires a Pro or Studio plan.'); return; }
   try {
@@ -7927,10 +7928,11 @@ async function startListening() {
     }
     if (err.upgradeRequired) { showUpgradeModal(err.message); return; }
     console.warn('Live streaming unavailable, using standard mode:', err.message);
+    liveFallbackReason = err.message || 'unknown reason';
   }
   await startListeningChunked();
   const det = document.getElementById('detectionStatus');
-  if (det && isListening) det.textContent = 'Standard listening mode (live streaming unavailable)';
+  if (det && isListening) det.textContent = `Standard (slower) listening mode — live listening unavailable: ${liveFallbackReason}`;
 }
 
 // ---- MIC + RECORDING ----
