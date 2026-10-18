@@ -23,7 +23,8 @@
     "electron-store": "^8.1.0",
     "electron-updater": "^6.8.3",
     "jszip": "^3.10.1",
-    "pdfjs-dist": "^4.0.379"
+    "pdfjs-dist": "^4.0.379",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "electron": "^41.5.0",

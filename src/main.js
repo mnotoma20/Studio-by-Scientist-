@@ -1432,6 +1432,39 @@ Generate 3-5 points. Make it practical, scripture-grounded, and suitable for a m
   }
 });
 
+// ── Live (streaming) transcription for Live Mode ──
+// Words arrive as the pastor speaks instead of after a recorded chunk is uploaded. Installed apps
+// get a short-lived token from the admin server (the OpenAI key never ships); a dev checkout with
+// a local key mints one directly so the feature can be exercised without the server route.
+async function getRealtimeToken() {
+  const gate = isFeatureAllowed('liveModeAI');
+  if (!gate.allowed) {
+    const err = new Error(gate.error || 'AI features require a Pro or Studio plan.');
+    err.upgradeRequired = true;
+    throw err;
+  }
+  const devKey = !app.isPackaged && process.env.OPENAI_API_KEY;
+  if (devKey) {
+    const res = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${devKey}` },
+      body: JSON.stringify({ session: { type: 'transcription', audio: { input: { format: { type: 'audio/pcm', rate: 24000 }, transcription: { model: 'gpt-live-transcribe', languages: ['en'] } } } } })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.value) throw new Error((data.error && data.error.message) || `Realtime token request failed (${res.status})`);
+    return data.value;
+  }
+  const r = await adminPost('/api/ai/realtime-token', {});
+  if (r._status === 403 && r.upgradeRequired) {
+    const err = new Error(r.error || 'AI features require a Pro or Studio plan.');
+    err.upgradeRequired = true;
+    throw err;
+  }
+  if (r._status < 200 || r._status >= 300 || !r.value) throw new Error(r.error || `Realtime token request failed (${r._status})`);
+  return r.value;
+}
+require('./liveStream').registerLiveStreamIpc({ ipcMain, getWindow: () => controlWindow, getToken: getRealtimeToken });
+
 ipcMain.handle('transcribe-audio', async (_event, audioBuffer) => {
   try {
     const gate = isFeatureAllowed('liveModeAI');

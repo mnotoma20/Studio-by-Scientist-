@@ -2046,6 +2046,12 @@
         <div id="detectionStatus" style="color: #6b7280; font-size: 12px; margin-top: 8px; min-height: 16px; text-align: center;"></div>
       </div>
 
+      <!-- Live scripture matches — updates word by word while the pastor speaks -->
+      <div id="liveCandidates" style="display: none; background: rgba(26,26,46,0.9); border: 2px solid rgba(236,72,153,0.35); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px;">
+        <div style="color: #ec4899; font-size: 11px; font-weight: 700; letter-spacing: 2px; margin-bottom: 8px;">HEARD — SCRIPTURE MATCHES <span style="color:#6b7280; letter-spacing:0; font-weight:400;">(tap one to put it on screen)</span></div>
+        <div id="liveCandidateRows" style="display: flex; flex-direction: column; gap: 6px;"></div>
+      </div>
+
       <!-- Suggest banner -->
       <div id="suggestBanner" style="display: none; background: rgba(167,139,250,0.15); border: 2px solid #a78bfa; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;">
@@ -7617,12 +7623,323 @@ function checkVerseCompletion(transcriptChunk) {
   }
 }
 
+// ============================================
+// LIVE STREAMING ENGINE — words as they are spoken + instant scripture matching
+// ============================================
+// The mic is streamed to the live transcription service (main process, liveStream.js), which
+// returns each word within about a second. Every new word is checked locally (no network) for a
+// spoken reference ("Psalm twenty three verse one") and for a verse being read aloud (matched from
+// its first few words against the bundled KJV text), so the verse can be on screen before the
+// pastor finishes it. The slower AI check only runs for paraphrases and Bible stories. If the live
+// service can't start, startListening() falls back to the original recorded-chunk mode.
+const { parseReference, formatRef, tokenize: matcherTokenize, VerseIndex } = require('./scriptureMatcher');
+
+let liveMatcher = null;
+let liveStreaming = false;
+let liveCtx = null, liveNode = null, liveSource = null, liveStreamObj = null;
+let liveText = '', liveOffset = 0, liveSettleTimer = null, liveWordBuf = '', liveFlushLen = 0;
+let lastTranscriptAt = 0, liveGain = 1, liveEma = 0, liveGptLen = 0, liveCandTimer = null;
+const liveHandled = new Map();
+
+function liveMatcherReady() {
+  if (!liveMatcher) liveMatcher = VerseIndex.fromFile(require('path').join(__dirname, '..', 'assets', 'kjv.json'));
+  return liveMatcher;
+}
+
+function liveRecent(key, ms) {
+  const t = liveHandled.get(key);
+  return !!t && (Date.now() - t) < ms;
+}
+
+function liveTail() {
+  return liveText.slice(Math.max(liveOffset, liveText.length - 600));
+}
+
+async function startLiveStreaming() {
+  liveMatcherReady();
+  const res = await ipcRenderer.invoke('live-stream-start');
+  if (!res.success) {
+    const e = new Error(res.error || 'Live transcription unavailable');
+    e.upgradeRequired = res.upgradeRequired;
+    throw e;
+  }
+  let stream;
+  try {
+    const audioConstraints = selectedAudioDeviceId
+      ? { deviceId: { exact: selectedAudioDeviceId }, echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+      : { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+    stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints });
+  } catch (err) {
+    ipcRenderer.invoke('live-stream-stop');
+    err.mic = true;
+    throw err;
+  }
+
+  liveText = ''; liveOffset = 0; liveWordBuf = ''; liveFlushLen = 0; liveGptLen = 0;
+  liveGain = 1; liveEma = 0; liveHandled.clear(); lastTranscriptAt = Date.now();
+  liveStreamObj = stream;
+  try {
+    liveCtx = new AudioContext({ sampleRate: 24000 });
+    if (liveCtx.state === 'suspended') await liveCtx.resume();
+    liveSource = liveCtx.createMediaStreamSource(stream);
+    const mute = liveCtx.createGain();
+    mute.gain.value = 0;
+    mute.connect(liveCtx.destination);
+    await setupLiveCapture(mute);
+  } catch (err) {
+    // Release the mic and the connection so the standard mode can take over cleanly
+    stream.getTracks().forEach((t) => t.stop());
+    try { if (liveCtx) liveCtx.close(); } catch (e) { /* already closed */ }
+    liveCtx = liveSource = liveNode = liveStreamObj = null;
+    ipcRenderer.invoke('live-stream-stop');
+    throw err;
+  }
+  liveStreaming = true;
+}
+
+async function setupLiveCapture(mute) {
+  try {
+    const code = "class P extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0];if(c)this.port.postMessage(c.slice(0));return true;}}registerProcessor('pcm-capture',P);";
+    const url = URL.createObjectURL(new Blob([code], { type: 'application/javascript' }));
+    await liveCtx.audioWorklet.addModule(url);
+    URL.revokeObjectURL(url);
+    liveNode = new AudioWorkletNode(liveCtx, 'pcm-capture');
+    liveNode.port.onmessage = (ev) => onLiveAudio(ev.data);
+  } catch (err) {
+    console.warn('AudioWorklet unavailable, using ScriptProcessor:', err.message);
+    liveNode = liveCtx.createScriptProcessor(2048, 1, 1);
+    liveNode.onaudioprocess = (ev) => onLiveAudio(new Float32Array(ev.inputBuffer.getChannelData(0)));
+  }
+  liveSource.connect(liveNode);
+  liveNode.connect(mute);
+}
+
+let livePending = [], livePendingLen = 0;
+function onLiveAudio(samples) {
+  if (!liveStreaming) return;
+  livePending.push(samples); livePendingLen += samples.length;
+  if (livePendingLen < 2400) return;                       // ~100 ms at 24 kHz
+  const block = new Float32Array(livePendingLen);
+  let o = 0;
+  for (const c of livePending) { block.set(c, o); o += c.length; }
+  livePending = []; livePendingLen = 0;
+
+  // Gentle auto-gain so a weak line-in still reaches the recogniser at a usable level. It only
+  // rises while speech is present, so it never pumps up the noise between words.
+  let peak = 0;
+  for (let i = 0; i < block.length; i++) { const a = Math.abs(block[i]); if (a > peak) peak = a; }
+  liveEma = liveEma * 0.9 + peak * 0.1;
+  if (liveEma > 0.015) liveGain = liveGain * 0.95 + Math.min(6, Math.max(1, 0.3 / liveEma)) * 0.05;
+  if (peak * liveGain > 0.95) liveGain = Math.max(1, 0.95 / peak);   // instant attack: a sudden loud sound must not clip
+
+  const pcm = new Int16Array(block.length);
+  for (let i = 0; i < block.length; i++) {
+    const v = Math.max(-1, Math.min(1, block[i] * liveGain));
+    pcm[i] = v < 0 ? v * 0x8000 : v * 0x7FFF;
+  }
+  ipcRenderer.send('live-stream-audio', new Uint8Array(pcm.buffer));
+}
+
+function stopLiveStreaming() {
+  if (!liveStreaming && !liveCtx) return;
+  liveStreaming = false;
+  clearTimeout(liveSettleTimer);
+  try { if (liveNode) liveNode.disconnect(); if (liveSource) liveSource.disconnect(); } catch (e) { /* already gone */ }
+  try { if (liveCtx) liveCtx.close(); } catch (e) { /* already closed */ }
+  if (liveStreamObj) liveStreamObj.getTracks().forEach((t) => t.stop());
+  liveNode = liveSource = liveCtx = liveStreamObj = null;
+  livePending = []; livePendingLen = 0;
+  flushLiveWords(true);
+  ipcRenderer.invoke('live-stream-stop');
+}
+
+ipcRenderer.on('live-stream-event', (_e, ev) => {
+  if (!liveStreaming) return;
+  const det = document.getElementById('detectionStatus');
+  if (ev.type === 'delta') onLiveDelta(ev.text);
+  else if (ev.type === 'reconnecting') { if (det) det.textContent = '↻ Reconnecting to live listening…'; }
+  else if (ev.type === 'reconnected') { if (det) det.textContent = ''; }
+  else if (ev.type === 'closed') { if (det) det.textContent = '⚠️ Live listening disconnected — press the mic to start again'; stopListening(); }
+  else if (ev.type === 'error') { console.warn('live stream error:', ev.message); if (det) det.textContent = `⚠️ ${ev.message}`; }
+});
+
+function flushLiveWords(all) {
+  // Whole words only into the read-along / service transcript (a delta can be half a word)
+  const parts = liveWordBuf.split(' ');
+  const keep = all ? '' : parts.pop();
+  const words = parts.filter(Boolean);
+  if (words.length) {
+    const text = words.join(' ');
+    appendToReadAlong(text, []);
+    if (typeof appendToServiceTranscript === 'function') appendToServiceTranscript(text);
+  }
+  liveWordBuf = keep;
+}
+
+function onLiveDelta(delta) {
+  lastTranscriptAt = Date.now();
+  liveText += delta;
+  if (liveText.length > 6000) {
+    const cut = liveText.length - 3000;
+    liveText = liveText.slice(cut);
+    liveOffset = Math.max(0, liveOffset - cut);
+    liveGptLen = Math.max(0, liveGptLen - cut);
+  }
+  fullTranscript += delta;
+  const el = document.getElementById('liveTranscript');
+  if (el) {
+    el.innerHTML = '<span style="color:#d1d5db;"></span>';
+    el.firstChild.textContent = fullTranscript.slice(-3000);
+    el.scrollTop = el.scrollHeight;
+  }
+  liveWordBuf += delta;
+  flushLiveWords(false);
+  runLiveAnalysis(false);
+  clearTimeout(liveSettleTimer);
+  liveSettleTimer = setTimeout(() => { flushLiveWords(true); runLiveAnalysis(true); }, 450);
+}
+
+function runLiveAnalysis(settled) {
+  if (!liveStreaming || !liveMatcher) return;
+  const tail = liveTail();
+  const words = tail.trim().split(/\s+/).filter(Boolean);
+  checkVerseCompletion(words.slice(-10).join(' '));      // keeps auto-advance working
+
+  const ref = parseReference(tail);
+  if (ref && !ref.chapterOnly) {
+    // Done once something is spoken after it, or the speaker pauses ("twenty" ... "eight")
+    if (settled || ref.end < ref.tokenCount) liveHandleExplicit(ref);
+    return;
+  }
+  if (settled && liveLocalNav(tail)) return;
+
+  const cands = liveMatcher.match(tail);
+  renderLiveCandidates(cands, ref);
+  const top = cands[0];
+  if (top && top.confidence === 'strong') liveHandleStrong(top);
+  else if (settled) liveMaybeAskAI(words);
+}
+
+function liveHandleExplicit(ref) {
+  const reference = `${ref.book} ${ref.chapter}:${ref.verse}`;
+  liveOffset = liveText.length;
+  if (liveRecent(reference, 6000)) return;
+  liveHandled.set(reference, Date.now());
+  showLiveReference(reference);
+}
+
+function liveHandleStrong(top) {
+  const cur = currentDisplayState;
+  const same = cur && cur.book && `${cur.book} ${cur.chapter}:${cur.verse}` === top.reference;
+  if (same || liveRecent(top.reference, 20000)) return;
+  liveOffset = liveText.length;
+  liveHandled.set(top.reference, Date.now());
+  showLiveReference(top.reference);
+}
+
+// "next verse", "previous verse", "verse six" — instant, no AI call
+function liveLocalNav(tail) {
+  if (!currentDisplayState.book) return false;
+  const s = matcherTokenize(tail).slice(-5).join(' ');
+  let nav = null;
+  if (/\b(next|following) verse$/.test(s)) nav = 'NAV:NEXT';
+  else if (/\b(previous|last) verse$/.test(s)) nav = 'NAV:PREV';
+  else { const m = s.match(/\bverse (\d+)$/); if (m) nav = 'NAV:VERSE:' + m[1]; }
+  if (!nav) return false;
+  liveOffset = liveText.length;
+  handleNavCommand(nav);
+  return true;
+}
+
+// Paraphrases and retold Bible stories still go to the AI, but only on a pause and at most
+// every few words of new speech — verses read aloud and spoken references never wait for it.
+function liveMaybeAskAI(words) {
+  if (words.length < 10 || liveText.length - liveGptLen < 40) return;
+  liveGptLen = liveText.length;
+  detectAndHandleReference(words.slice(-40).join(' '));
+}
+
+async function showLiveReference(reference, opts) {
+  const force = !!(opts && opts.force);
+  let verse = null;
+  if (liveTranslation() === 'kjv' && liveMatcher) verse = liveMatcher.lookup(reference);
+  if (!verse) {
+    const r = await ipcRenderer.invoke('ai-fetch-and-display-passive', reference, liveTranslation());
+    if (!r.success || !r.verse) return false;
+    verse = r.verse;
+  }
+  markAsDetected(reference);
+  if (force) displayVerseAndUpdateState(verse);
+  else presentDetectedVerse(verse.reference || reference, verse, false);
+  return true;
+}
+
+function renderLiveCandidates(cands, ref) {
+  const panel = document.getElementById('liveCandidates');
+  const rows = document.getElementById('liveCandidateRows');
+  if (!panel || !rows) return;
+  const list = [];
+  if (ref && ref.chapterOnly) list.push({ reference: `${ref.book} ${ref.chapter}:1`, label: `${ref.book} ${ref.chapter}`, text: 'Chapter — opens at verse 1', confidence: 'likely' });
+  (cands || []).forEach((c) => list.push({ reference: c.reference, label: c.reference, text: c.text, confidence: c.confidence }));
+  if (!list.length) return;
+  rows.innerHTML = '';
+  list.slice(0, 4).forEach((c, i) => {
+    const row = document.createElement('div');
+    row.style.cssText = `display:flex; gap:10px; align-items:baseline; padding:8px 10px; border-radius:8px; cursor:pointer; background:${i === 0 ? 'rgba(236,72,153,0.16)' : 'rgba(45,45,74,0.5)'}; border:1px solid ${i === 0 ? 'rgba(236,72,153,0.5)' : 'rgba(167,139,250,0.2)'};`;
+    const ref1 = document.createElement('span');
+    ref1.style.cssText = 'color:#fff; font-weight:700; font-size:14px; white-space:nowrap;';
+    ref1.textContent = c.label;
+    const txt = document.createElement('span');
+    txt.style.cssText = 'color:#9ca3af; font-size:12px; font-style:italic; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1;';
+    txt.textContent = c.text;
+    row.appendChild(ref1); row.appendChild(txt);
+    if (c.confidence === 'strong') {
+      const tag = document.createElement('span');
+      tag.style.cssText = 'color:#10b981; font-size:10px; font-weight:800; letter-spacing:1px;';
+      tag.textContent = 'MATCH';
+      row.appendChild(tag);
+    }
+    row.onclick = () => { liveOffset = liveText.length; liveHandled.set(c.reference, Date.now()); showLiveReference(c.reference, { force: true }); };
+    rows.appendChild(row);
+  });
+  panel.style.display = 'block';
+  clearTimeout(liveCandTimer);
+  liveCandTimer = setTimeout(() => { panel.style.display = 'none'; }, 12000);
+}
+
+async function startListening() {
+  if (!isPaidPlan()) { showUpgradeModal('Live Mode (AI voice detection) requires a Pro or Studio plan.'); return; }
+  try {
+    await startLiveStreaming();
+    isListening = true;
+    fullTranscript = '';
+    readAlongStarted = false;
+    updateMicUI(true);
+    startLevelMonitor(liveStreamObj);
+    return;
+  } catch (err) {
+    if (err.mic) {
+      console.error('Microphone error:', err);
+      if (err.name === 'NotAllowedError') alert('Microphone access denied. Go to System Settings → Privacy & Security → Microphone and allow this app.');
+      else alert('Could not access microphone: ' + err.message);
+      isListening = false;
+      updateMicUI(false);
+      return;
+    }
+    if (err.upgradeRequired) { showUpgradeModal(err.message); return; }
+    console.warn('Live streaming unavailable, using standard mode:', err.message);
+  }
+  await startListeningChunked();
+  const det = document.getElementById('detectionStatus');
+  if (det && isListening) det.textContent = 'Standard listening mode (live streaming unavailable)';
+}
+
 // ---- MIC + RECORDING ----
 function toggleListening() {
   isListening ? stopListening() : startListening();
 }
 
-async function startListening() {
+async function startListeningChunked() {
   // Cheap renderer-side pre-check — skips the mic-permission prompt entirely for free users;
   // main.js still re-checks every chunk, since this is UX polish only.
   if (!isPaidPlan()) { showUpgradeModal('Live Mode (AI voice detection) requires a Pro or Studio plan.'); return; }
@@ -7706,6 +8023,7 @@ async function startListening() {
 
 function stopListening() {
   isListening = false;
+  stopLiveStreaming();
   if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
   mediaRecorder = null;
   stopLevelMonitor();
@@ -7743,7 +8061,7 @@ function startLevelMonitor(stream) {
       quietMs = peak < 0.01 ? quietMs + 250 : 0;
       const bars = Math.min(10, Math.round(peak * 40));
       const meter = '▮'.repeat(bars) + '<span style="color:#374151;">' + '▯'.repeat(10 - bars) + '</span>';
-      const warn = quietMs >= 6000
+      const warn = (quietMs >= 6000 && Date.now() - lastTranscriptAt > 12000)
         ? '<div style="color:#f59e0b;font-size:12px;margin-top:6px;">⚠️ No sound is coming in from this input. Check the Audio Input choice above and the input level in your computer\'s sound settings.</div>'
         : '';
       status.innerHTML = `<span style="color:#ec4899;">● Listening...</span> <span style="color:#10b981;letter-spacing:1px;">${meter}</span>${warn}`;
