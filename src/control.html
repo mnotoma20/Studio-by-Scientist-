@@ -7523,12 +7523,38 @@ function presentDetectedVerse(reference, verse, isStory) {
 }
 
 // ---- DETECTION ----
+// Standard (recorded-chunk) mode: same instant on-computer recognition the live engine uses, run
+// over the last few chunks, so spoken references and verses read aloud are handled without
+// waiting on the slower AI round trip. Returns true when something was recognised (even if it was
+// already shown), which skips the AI call for that chunk. Not used while live streaming is on --
+// runLiveAnalysis() already does this on every word.
+function detectLocally() {
+  if (liveStreaming) return false;
+  let matcher;
+  try { matcher = liveMatcherReady(); } catch (e) { return false; }
+  const joined = recentTranscriptContext.join(' ');
+  const ref = parseReference(joined);
+  if (ref && !ref.chapterOnly) {
+    const reference = `${ref.book} ${ref.chapter}:${ref.verse}`;
+    if (!isRecentlyDetected(reference)) { markAsDetected(reference); showLiveReference(reference); }
+    return true;
+  }
+  const top = matcher.match(joined)[0];
+  if (top && top.confidence === 'strong') {
+    if (!isRecentlyDetected(top.reference)) { markAsDetected(top.reference); showLiveReference(top.reference); }
+    return true;
+  }
+  return false;
+}
+
 async function detectAndHandleReference(text) {
   const statusEl = document.getElementById('detectionStatus');
 
   recentTranscriptContext.push(text);
   if (recentTranscriptContext.length > 3) recentTranscriptContext.shift();
   const recentContext = recentTranscriptContext.slice(0, -1).join(' ').trim();
+
+  if (detectLocally()) return;
 
   // FAST PATH: explicit reference caught locally → display instantly, skip GPT
   const quick = detectExplicitReference(text);
