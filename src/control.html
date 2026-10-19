@@ -2031,7 +2031,12 @@
           <option value="">Default Microphone</option>
         </select>
         <button onclick="refreshAudioDevices()" title="Refresh devices" style="background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.2); color: #9ca3af; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 13px;">↺</button>
+        <span style="color: #9ca3af; font-size: 12px; font-weight: 600; white-space: nowrap;">Boost:</span>
+        <select id="audioBoostSelect" title="Auto raises a weak signal for you; pick a fixed level if the source is very quiet" onchange="localStorage.setItem('audioBoost', this.value)" style="padding: 6px 8px; background: rgba(45,45,74,0.8); border: 1px solid rgba(167,139,250,0.3); border-radius: 6px; color: #fff; font-size: 12px; outline: none;">
+          <option value="0">Auto</option><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option>
+        </select>
       </div>
+      <div id="audioDiagnostics" style="color: #6b7280; font-size: 11px; margin: -12px 0 16px 4px; min-height: 14px;"></div>
 
       <!-- Mic button -->
       <div style="text-align: center; margin-bottom: 30px;">
@@ -7104,6 +7109,7 @@ function hideLowerThird() {
 
 // ─── Audio Device Selection ──────────────────────────────────────────────────
 let selectedAudioDeviceId = localStorage.getItem('audioDeviceId') || '';
+{ const savedBoost = localStorage.getItem('audioBoost'); const boostEl = document.getElementById('audioBoostSelect'); if (savedBoost && boostEl) boostEl.value = savedBoost; }
 
 async function refreshAudioDevices() {
   try {
@@ -7724,38 +7730,68 @@ async function startLiveStreaming() {
 
 async function setupLiveCapture(mute) {
   try {
-    const code = "class P extends AudioWorkletProcessor{process(i){const c=i[0]&&i[0][0];if(c)this.port.postMessage(c.slice(0));return true;}}registerProcessor('pcm-capture',P);";
+    const code = "class P extends AudioWorkletProcessor{process(i){const a=i[0];if(a&&a[0])this.port.postMessage([a[0].slice(0),(a[1]||a[0]).slice(0)]);return true;}}registerProcessor('pcm-capture',P);";
     const url = URL.createObjectURL(new Blob([code], { type: 'application/javascript' }));
     await liveCtx.audioWorklet.addModule(url);
     URL.revokeObjectURL(url);
-    liveNode = new AudioWorkletNode(liveCtx, 'pcm-capture');
+    // Always two input channels (a mono source is duplicated) so the stronger one can be chosen
+    liveNode = new AudioWorkletNode(liveCtx, 'pcm-capture', { channelCount: 2, channelCountMode: 'explicit', outputChannelCount: [1] });
     liveNode.port.onmessage = (ev) => onLiveAudio(ev.data);
   } catch (err) {
     console.warn('AudioWorklet unavailable, using ScriptProcessor:', err.message);
-    liveNode = liveCtx.createScriptProcessor(2048, 1, 1);
-    liveNode.onaudioprocess = (ev) => onLiveAudio(new Float32Array(ev.inputBuffer.getChannelData(0)));
+    liveNode = liveCtx.createScriptProcessor(2048, 2, 1);
+    liveNode.onaudioprocess = (ev) => {
+      const b = ev.inputBuffer;
+      onLiveAudio([new Float32Array(b.getChannelData(0)), new Float32Array(b.getChannelData(b.numberOfChannels > 1 ? 1 : 0))]);
+    };
   }
   liveSource.connect(liveNode);
   liveNode.connect(mute);
 }
 
 let livePending = [], livePendingLen = 0;
+let liveChanEnergy = [0, 0], liveChanPick = 'mix';
+
+// Manual boost ("Auto" = the gentle automatic gain below)
+function liveManualBoost() {
+  const v = parseFloat((document.getElementById('audioBoostSelect') || {}).value);
+  return isFinite(v) && v > 0 ? v : 0;
+}
+
+// samples: a Float32Array (one channel) or [left, right]. Many mixers/NDI sources put the sound on
+// ONE side of a stereo pair, so reading only the left channel can mean hearing nothing at all.
 function onLiveAudio(samples) {
   if (!liveStreaming) return;
-  livePending.push(samples); livePendingLen += samples.length;
+  const L = Array.isArray(samples) ? samples[0] : samples;
+  const R = Array.isArray(samples) ? samples[1] : samples;
+  livePending.push([L, R]); livePendingLen += L.length;
   if (livePendingLen < 2400) return;                       // ~100 ms at 24 kHz
-  const block = new Float32Array(livePendingLen);
+  const left = new Float32Array(livePendingLen), right = new Float32Array(livePendingLen);
   let o = 0;
-  for (const c of livePending) { block.set(c, o); o += c.length; }
+  for (const [l, r] of livePending) { left.set(l, o); right.set(r, o); o += l.length; }
   livePending = []; livePendingLen = 0;
 
-  // Gentle auto-gain so a weak line-in still reaches the recogniser at a usable level. It only
-  // rises while speech is present, so it never pumps up the noise between words.
+  // Which side carries the sound? Smoothed energy per channel; use the stronger side when one is
+  // clearly louder, otherwise mix both.
+  let el = 0, er = 0;
+  for (let i = 0; i < left.length; i++) { el += left[i] * left[i]; er += right[i] * right[i]; }
+  liveChanEnergy[0] = liveChanEnergy[0] * 0.9 + el * 0.1;
+  liveChanEnergy[1] = liveChanEnergy[1] * 0.9 + er * 0.1;
+  const [ce0, ce1] = liveChanEnergy;
+  liveChanPick = ce0 > ce1 * 4 ? 'left' : ce1 > ce0 * 4 ? 'right' : 'mix';
+  const block = new Float32Array(left.length);
+  for (let i = 0; i < block.length; i++) block[i] = liveChanPick === 'left' ? left[i] : liveChanPick === 'right' ? right[i] : (left[i] + right[i]) / 2;
+
+  // Gain: a fixed manual boost if chosen, otherwise gentle auto-gain so a weak line-in still reaches
+  // the recogniser at a usable level. Auto only rises while speech is present, so it never pumps up
+  // the noise between words.
   let peak = 0;
   for (let i = 0; i < block.length; i++) { const a = Math.abs(block[i]); if (a > peak) peak = a; }
   liveEma = liveEma * 0.9 + peak * 0.1;
-  if (liveEma > 0.015) liveGain = liveGain * 0.95 + Math.min(6, Math.max(1, 0.3 / liveEma)) * 0.05;
-  if (peak * liveGain > 0.95) liveGain = Math.max(1, 0.95 / peak);   // instant attack: a sudden loud sound must not clip
+  const manual = liveManualBoost();
+  if (manual) liveGain = manual;
+  else if (liveEma > 0.015) liveGain = liveGain * 0.95 + Math.min(6, Math.max(1, 0.3 / liveEma)) * 0.05;
+  if (peak * liveGain > 0.95) liveGain = Math.max(manual ? 1 : 1, 0.95 / peak);   // instant attack: a sudden loud sound must not clip
 
   const pcm = new Int16Array(block.length);
   for (let i = 0; i < block.length; i++) {
@@ -7763,6 +7799,17 @@ function onLiveAudio(samples) {
     pcm[i] = v < 0 ? v * 0x8000 : v * 0x7FFF;
   }
   ipcRenderer.send('live-stream-audio', new Uint8Array(pcm.buffer));
+}
+
+// One line saying what is actually being captured -- the first thing to check when "it hears nothing"
+function showAudioDiagnostics(stream) {
+  const el = document.getElementById('audioDiagnostics');
+  if (!el) return;
+  const t = stream && stream.getAudioTracks()[0];
+  if (!t) { el.textContent = ''; return; }
+  const st = t.getSettings ? t.getSettings() : {};
+  const yn = (v) => (v === undefined ? '?' : v ? 'on' : 'off');
+  el.textContent = `Capturing: ${t.label || 'input'} · ${st.sampleRate || '?'} Hz · ${st.channelCount || '?'} ch · echo ${yn(st.echoCancellation)}, noise filter ${yn(st.noiseSuppression)}, auto-gain ${yn(st.autoGainControl)}`;
 }
 
 function stopLiveStreaming() {
@@ -7942,6 +7989,7 @@ async function startListening() {
     readAlongStarted = false;
     updateMicUI(true);
     startLevelMonitor(liveStreamObj);
+    showAudioDiagnostics(liveStreamObj);
     return;
   } catch (err) {
     if (err.mic) {
@@ -8091,7 +8139,8 @@ function startLevelMonitor(stream) {
       const warn = (quietMs >= 6000 && Date.now() - lastTranscriptAt > 12000)
         ? '<div style="color:#f59e0b;font-size:12px;margin-top:6px;">⚠️ No sound is coming in from this input. Check the Audio Input choice above and the input level in your computer\'s sound settings.</div>'
         : '';
-      status.innerHTML = `<span style="color:#ec4899;">● Listening...</span> <span style="color:#10b981;letter-spacing:1px;">${meter}</span>${warn}`;
+      const side = liveStreaming ? ` <span style="color:#6b7280;font-size:11px;">(${liveChanPick === 'mix' ? 'both channels' : liveChanPick + ' channel'})</span>` : '';
+      status.innerHTML = `<span style="color:#ec4899;">● Listening...</span> <span style="color:#10b981;letter-spacing:1px;">${meter}</span>${side}${warn}`;
     }, 250);
   } catch (e) {
     console.warn('Level monitor unavailable:', e.message);
