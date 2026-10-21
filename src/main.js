@@ -684,6 +684,26 @@ ipcMain.on('auth-verify-otp', async (event, data) => {
   event.reply('auth-verify-otp-response', result);
 });
 
+// Forgot password
+ipcMain.on('auth-request-reset', async (event, data) => {
+  const email = String((data && data.email) || '').trim();
+  if (!auth || !email) { event.reply('auth-request-reset-response', { success: false, error: 'Enter your email address' }); return; }
+  event.reply('auth-request-reset-response', await auth.requestPasswordReset(email));
+});
+
+ipcMain.on('auth-reset-password', async (event, data) => {
+  const email = String((data && data.email) || '').trim();
+  const token = String((data && data.token) || '').trim();
+  const password = String((data && data.password) || '');
+  if (!auth || !email || !token || password.length < 6) {
+    event.reply('auth-reset-password-response', { success: false, error: 'Enter the code and a new password of at least 6 characters' });
+    return;
+  }
+  // Never leave a session behind from this flow: signing in is a separate, deliberate step
+  if (setSessionPersistence) setSessionPersistence(false);
+  event.reply('auth-reset-password-response', await auth.resetPasswordWithCode(email, token, password));
+});
+
 // Resend OTP
 ipcMain.on('auth-resend-otp', async (event, data) => {
   console.log('📧 Resending OTP to:', data.email);

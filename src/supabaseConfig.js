@@ -173,6 +173,36 @@ const auth = {
     }
   },
 
+  // Forgot password, step 1: email a one-time code. Supabase answers success whether or not the
+  // address has an account (so this can't be used to discover who is registered). The Supabase
+  // "Reset Password" email template must include {{ .Token }} for the code to appear in the email.
+  async requestPasswordReset(email) {
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email);
+      if (error) throw error;
+      return { success: true };
+    } catch (error) {
+      console.error('Password reset request error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
+  // Forgot password, step 2: the code proves control of the inbox (and briefly signs in), then the
+  // password is replaced and the temporary session discarded -- the user signs in normally after.
+  async resetPasswordWithCode(email, token, newPassword) {
+    try {
+      const { error: verifyError } = await supabase.auth.verifyOtp({ email, token, type: 'recovery' });
+      if (verifyError) throw verifyError;
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+      if (updateError) throw updateError;
+      await supabase.auth.signOut();
+      return { success: true };
+    } catch (error) {
+      console.error('Password reset error:', error);
+      return { success: false, error: error.message };
+    }
+  },
+
   // Sign in existing user
   async signIn(email, password) {
     try {

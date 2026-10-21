@@ -329,7 +329,35 @@
       </button>
     </form>
 
-    <div class="auth-switch">
+    <!-- Forgot password -->
+    <div id="resetPanel" style="display: none;">
+      <div id="resetStep1">
+        <div class="form-group">
+          <label class="form-label">Email Address</label>
+          <input type="email" class="form-input" id="resetEmail" placeholder="your@email.com" />
+        </div>
+        <button type="button" class="btn-primary" id="resetSendBtn" onclick="sendResetCode()">Send Reset Code</button>
+      </div>
+      <div id="resetStep2" style="display: none;">
+        <div class="form-group">
+          <label class="form-label">Code From Your Email</label>
+          <input type="text" class="form-input" id="resetCode" inputmode="numeric" autocomplete="one-time-code" placeholder="Enter the code" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">New Password</label>
+          <input type="password" class="form-input" id="resetNewPassword" placeholder="At least 6 characters" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirm New Password</label>
+          <input type="password" class="form-input" id="resetConfirmPassword" placeholder="Type it again" />
+        </div>
+        <button type="button" class="btn-primary" id="resetSubmitBtn" onclick="submitReset()">Reset Password</button>
+        <div class="auth-switch" style="margin-top: 16px;">Didn't get it? <a class="auth-link" onclick="sendResetCode(true)">Send a new code</a></div>
+      </div>
+      <div class="auth-switch" style="margin-top: 20px;"><a class="auth-link" onclick="hideReset()">&larr; Back to sign in</a></div>
+    </div>
+
+    <div class="auth-switch" id="signupSwitch">
       Don't have an account?
       <a class="auth-link" onclick="goToSignUp()">Sign Up</a>
     </div>
@@ -424,9 +452,85 @@
     ipcRenderer.send('go-to-signup');
   }
 
+  // ---- Forgot password: email a code, then set a new password ----
+  const $ = (id) => document.getElementById(id);
+  let resetEmailValue = '';
+
   function forgotPassword() {
-    alert('Password reset feature coming soon!\n\nFor now, please contact support at support@studiobyscientist.com');
+    errorMessage.classList.remove('show');
+    successMessage.classList.remove('show');
+    $('signinForm').style.display = 'none';
+    $('signupSwitch').style.display = 'none';
+    $('resetPanel').style.display = 'block';
+    $('resetStep1').style.display = 'block';
+    $('resetStep2').style.display = 'none';
+    document.querySelector('.auth-title').textContent = 'Reset Password';
+    document.querySelector('.auth-subtitle').textContent = "We'll email you a code to set a new password";
+    $('resetEmail').value = $('email').value.trim();
+    $('resetEmail').focus();
   }
+
+  function hideReset() {
+    $('resetPanel').style.display = 'none';
+    $('signinForm').style.display = 'block';
+    $('signupSwitch').style.display = 'block';
+    document.querySelector('.auth-title').textContent = 'Welcome Back';
+    document.querySelector('.auth-subtitle').textContent = 'Sign in to continue to your church';
+  }
+
+  function friendlyResetError(msg) {
+    const m = String(msg || '');
+    if (/expired|invalid/i.test(m)) return 'That code is wrong or has expired. Check it, or send a new code.';
+    if (/seconds|rate limit|too many/i.test(m)) return 'Please wait a minute before asking for another code.';
+    return m || 'Something went wrong. Please try again.';
+  }
+
+  function sendResetCode(isResend) {
+    errorMessage.classList.remove('show');
+    const email = (isResend ? resetEmailValue : $('resetEmail').value).trim();
+    if (!email || !/^\S+@\S+\.\S+$/.test(email)) { showError('Please enter a valid email address'); return; }
+    resetEmailValue = email;
+    $('resetSendBtn').disabled = true;
+    ipcRenderer.send('auth-request-reset', { email });
+  }
+
+  ipcRenderer.on('auth-request-reset-response', (event, response) => {
+    $('resetSendBtn').disabled = false;
+    if (response.success) {
+      $('resetStep1').style.display = 'none';
+      $('resetStep2').style.display = 'block';
+      document.querySelector('.auth-subtitle').textContent = 'Enter the code we emailed you and choose a new password';
+      showSuccess('If that email has an account, we just sent a code. Check your inbox and spam folder.');
+      $('resetCode').focus();
+    } else {
+      showError(friendlyResetError(response.error));
+    }
+  });
+
+  function submitReset() {
+    errorMessage.classList.remove('show');
+    const token = $('resetCode').value.trim();
+    const password = $('resetNewPassword').value;
+    if (!token) { showError('Enter the code from your email'); return; }
+    if (password.length < 6) { showError('Password must be at least 6 characters long'); return; }
+    if (password !== $('resetConfirmPassword').value) { showError('The two passwords do not match'); return; }
+    $('resetSubmitBtn').disabled = true;
+    successMessage.classList.remove('show');
+    ipcRenderer.send('auth-reset-password', { email: resetEmailValue, token, password });
+  }
+
+  ipcRenderer.on('auth-reset-password-response', (event, response) => {
+    $('resetSubmitBtn').disabled = false;
+    if (response.success) {
+      $('email').value = resetEmailValue;
+      $('password').value = '';
+      $('resetCode').value = ''; $('resetNewPassword').value = ''; $('resetConfirmPassword').value = '';
+      hideReset();
+      showSuccess('Password updated. Sign in with your new password.');
+    } else {
+      showError(friendlyResetError(response.error));
+    }
+  });
 
   // Auto-fill email if remembered
   ipcRenderer.on('remembered-email', (event, email) => {
