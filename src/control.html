@@ -7408,6 +7408,7 @@ async function displayVerseAndUpdateState(verse) {
       verseText: verse.text, translation: trans
     };
     livePassage = { book: parsed.book, chapter: parsed.chapter, verse: parsed.verse };
+    if (liveRange && (liveRange.book !== parsed.book || liveRange.chapter !== parsed.chapter)) liveRange = null;
     if (liveStreaming) liveOffset = liveText.length;   // whatever put this up, listen fresh from here
     loadChapterContext(parsed.book, parsed.chapter, parsed.verse);
   }
@@ -7544,7 +7545,14 @@ function detectLocally() {
   const ref = parseReference(joined);
   if (ref && !ref.chapterOnly) {
     const reference = `${ref.book} ${ref.chapter}:${ref.verse}`;
+    livePassage = { book: ref.book, chapter: ref.chapter, verse: ref.verse };
+    liveRange = ref.verseEnd && ref.verseEnd > ref.verse ? { book: ref.book, chapter: ref.chapter, start: ref.verse, end: ref.verseEnd } : null;
     if (!isRecentlyDetected(reference)) { markAsDetected(reference); showLiveReference(reference); }
+    return true;
+  }
+  if (ref && ref.chapterOnly && ref.end >= ref.tokenCount) {
+    // chapter named, verse still coming (maybe in the next chunk): remember it and wait
+    livePassage = { book: ref.book, chapter: ref.chapter, verse: null };
     return true;
   }
   const top = matcher.match(joined, { cursor: livePassage.book ? livePassage : null })[0];
@@ -7563,6 +7571,7 @@ async function detectAndHandleReference(text) {
   const recentContext = recentTranscriptContext.slice(0, -1).join(' ').trim();
 
   if (detectLocally()) return;
+  if (chapterJustNamed(recentTranscriptContext.join(' '))) return;
 
   // FAST PATH: explicit reference caught locally → display instantly, skip GPT
   const quick = detectExplicitReference(text);
@@ -7651,6 +7660,9 @@ function checkVerseCompletion(transcriptChunk) {
 
   if (completionRatio >= 0.85) {
     stopVerseCompletionTracking();
+    // "verses 2 to 5": the last verse of the range is the last verse -- never read on past it
+    if (liveRange && liveRange.book === currentDisplayState.book && liveRange.chapter === currentDisplayState.chapter
+        && currentDisplayState.verse >= liveRange.end) { liveRange = null; return; }
     const keyNow = () => `${currentDisplayState.book} ${currentDisplayState.chapter}:${currentDisplayState.verse}`;
     const fromKey = keyNow();
     const nextRef = `${currentDisplayState.book} ${currentDisplayState.chapter}:${currentDisplayState.verse + 1}`;
@@ -7681,6 +7693,16 @@ const { parseReference, parseRelative, formatRef, tokenize: matcherTokenize, Ver
 // operator always knows this, so "from verse 10" means verse 10 of the chapter just announced, and
 // a verse already read is not shown again. verse is null while only the chapter is known.
 let livePassage = { book: null, chapter: null, verse: null };
+// "Psalm 23, verses 2 to 5": read verse 2, then 3, 4, 5, and stop there (null when not reading a range)
+let liveRange = null;
+
+// A chapter was just named and nothing follows it yet ("Psalm twenty three" ...): the verse number is
+// still coming, so nothing may be guessed -- the AI would answer verse 1, and a chunk boundary can cut
+// a number in half ("twenty" | "three"). A person waits for the verse.
+function chapterJustNamed(text) {
+  const ref = parseReference(text);
+  return !!(ref && ref.chapterOnly && ref.end >= ref.tokenCount);
+}
 
 function liveIsBehind(reference) {
   const m = /^(.+?)\s+(\d+):(\d+)/.exec(reference || '');
@@ -7925,6 +7947,7 @@ function liveHandleExplicit(ref) {
   const reference = `${ref.book} ${ref.chapter}:${ref.verse}`;
   liveOffset = liveText.length;
   livePassage = { book: ref.book, chapter: ref.chapter, verse: ref.verse };
+  liveRange = ref.verseEnd && ref.verseEnd > ref.verse ? { book: ref.book, chapter: ref.chapter, start: ref.verse, end: ref.verseEnd } : null;
   if (liveRecent(reference, 6000)) return;
   liveHandled.set(reference, Date.now());
   showLiveReference(reference);
@@ -7945,19 +7968,20 @@ function liveRelativeNav(tail, settled) {
   const base = livePassage.book ? livePassage
     : (currentDisplayState.book ? { book: currentDisplayState.book, chapter: currentDisplayState.chapter, verse: currentDisplayState.verse } : null);
   if (!base) return false;
-  const go = (chapter, verse) => {
+  const go = (chapter, verse, rangeEnd) => {
     const reference = `${base.book} ${chapter}:${verse}`;
     liveOffset = liveText.length;
     if (liveRecent(reference, 4000)) return true;
     liveHandled.set(reference, Date.now());
     livePassage = { book: base.book, chapter, verse };
+    liveRange = rangeEnd && rangeEnd > verse ? { book: base.book, chapter, start: verse, end: rangeEnd } : null;
     showLiveReference(reference);
     return true;
   };
   const rel = parseRelative(tail);
   if (rel) {
     // still being spoken ("verse ten ... to twelve")? wait for the number to finish or a pause
-    if (settled || rel.end < rel.tokenCount) return go(rel.chapter || base.chapter, rel.verse);
+    if (settled || rel.end < rel.tokenCount) return go(rel.chapter || base.chapter, rel.verse, rel.verseEnd);
     return true;
   }
   if (settled && base.verse) {
@@ -7974,6 +7998,7 @@ function liveRelativeNav(tail, settled) {
 // every few words of new speech — verses read aloud and spoken references never wait for it.
 function liveMaybeAskAI(words) {
   if (words.length < 10 || liveText.length - liveGptLen < 40) return;
+  if (chapterJustNamed(words.slice(-12).join(' '))) return;
   liveGptLen = liveText.length;
   detectAndHandleReference(words.slice(-40).join(' '));
 }
