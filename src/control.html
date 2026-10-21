@@ -2030,7 +2030,7 @@
           onchange="selectedAudioDeviceId = this.value; localStorage.setItem('audioDeviceId', this.value);">
           <option value="">Default Microphone</option>
         </select>
-        <button onclick="refreshAudioDevices()" title="Refresh devices" style="background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.2); color: #9ca3af; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 13px;">↺</button>
+        <button id="audioRefreshBtn" onclick="refreshAudioDevices(true)" title="Refresh devices" style="background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.2); color: #9ca3af; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 13px;">↺</button>
         <span style="color: #9ca3af; font-size: 12px; font-weight: 600; white-space: nowrap;">Boost:</span>
         <select id="audioBoostSelect" title="Auto raises a weak signal for you; pick a fixed level if the source is very quiet" onchange="localStorage.setItem('audioBoost', this.value)" style="padding: 6px 8px; background: rgba(45,45,74,0.8); border: 1px solid rgba(167,139,250,0.3); border-radius: 6px; color: #fff; font-size: 12px; outline: none;">
           <option value="0">Auto</option><option value="1">1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option>
@@ -7111,10 +7111,19 @@ function hideLowerThird() {
 let selectedAudioDeviceId = localStorage.getItem('audioDeviceId') || '';
 { const savedBoost = localStorage.getItem('audioBoost'); const boostEl = document.getElementById('audioBoostSelect'); if (savedBoost && boostEl) boostEl.value = savedBoost; }
 
-async function refreshAudioDevices() {
+async function refreshAudioDevices(manual) {
+  const btn = document.getElementById('audioRefreshBtn');
+  const diag = document.getElementById('audioDiagnostics');
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const audioInputs = devices.filter(d => d.kind === 'audioinput');
+    const perm = await ipcRenderer.invoke('mic-access', true);
+    let devices = await navigator.mediaDevices.enumerateDevices();
+    // Without mic access Chromium hides device names; open the mic briefly so they appear
+    if (perm !== 'denied' && devices.some(d => d.kind === 'audioinput' && !d.label)) {
+      try { (await navigator.mediaDevices.getUserMedia({ audio: true })).getTracks().forEach(t => t.stop()); } catch (_) {}
+      devices = await navigator.mediaDevices.enumerateDevices();
+    }
+    const audioInputs = devices.filter(d => d.kind === 'audioinput' && d.deviceId !== 'default' && d.deviceId !== 'communications');
     const select = document.getElementById('audioDeviceSelect');
     if (!select) return;
     const prevValue = select.value || selectedAudioDeviceId;
@@ -7125,10 +7134,22 @@ async function refreshAudioDevices() {
       opt.textContent = d.label || `Microphone ${select.options.length}`;
       select.appendChild(opt);
     });
-    if (prevValue) select.value = prevValue;
+    // A saved device from another computer won't exist here - fall back to the default
+    const stillThere = prevValue && audioInputs.some(d => d.deviceId === prevValue);
+    select.value = stillThere ? prevValue : '';
     selectedAudioDeviceId = select.value;
+    try { localStorage.setItem('audioDeviceId', selectedAudioDeviceId); } catch (_) {}
+    if (diag && (manual || perm === 'denied' || perm === 'restricted')) {
+      diag.style.color = (perm === 'denied' || perm === 'restricted') ? '#f59e0b' : '#10b981';
+      diag.textContent = (perm === 'denied' || perm === 'restricted')
+        ? 'Microphone access is blocked for this app. Turn it on in System Settings → Privacy & Security → Microphone.'
+        : `Found ${audioInputs.length} microphone${audioInputs.length === 1 ? '' : 's'}.`;
+    }
   } catch (e) {
     console.warn('Could not enumerate audio devices:', e.message);
+    if (diag) { diag.style.color = '#f59e0b'; diag.textContent = 'Could not list microphones: ' + e.message; }
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↺'; }
   }
 }
 
@@ -8055,6 +8076,12 @@ let liveFallbackReason = '';
 async function startListening() {
   if (!isPaidPlan()) { showUpgradeModal('Live Mode (AI voice detection) requires a Pro or Studio plan.'); return; }
   try {
+    const micPerm = await ipcRenderer.invoke('mic-access', true);
+    if (micPerm === 'denied' || micPerm === 'restricted') {
+      const st = document.getElementById('listeningStatus');
+      if (st) st.innerHTML = '<span style="color:#f59e0b;">⚠️ Microphone access is blocked for this app. <a href="#" onclick="ipcRenderer.invoke(\'open-mic-settings\');return false;" style="color:#fbbf24;">Open microphone settings</a>, switch Studio by Scientist on, then restart the app.</span>';
+      return;
+    }
     await startLiveStreaming();
     isListening = true;
     fullTranscript = '';
@@ -8193,7 +8220,7 @@ function startLevelMonitor(stream) {
   stopLevelMonitor();
   try {
     _levelCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (_levelCtx.state === 'suspended') _levelCtx.resume();
+    if (_levelCtx.state === 'suspended') _levelCtx.resume().catch(() => {});
     const analyser = _levelCtx.createAnalyser();
     analyser.fftSize = 1024;
     _levelCtx.createMediaStreamSource(stream).connect(analyser);
@@ -8209,7 +8236,7 @@ function startLevelMonitor(stream) {
       const bars = Math.min(10, Math.round(peak * 40));
       const meter = '▮'.repeat(bars) + '<span style="color:#374151;">' + '▯'.repeat(10 - bars) + '</span>';
       const warn = (quietMs >= 6000 && Date.now() - lastTranscriptAt > 12000)
-        ? '<div style="color:#f59e0b;font-size:12px;margin-top:6px;">⚠️ No sound is coming in from this input. Check the Audio Input choice above and the input level in your computer\'s sound settings.</div>'
+        ? '<div style="color:#f59e0b;font-size:12px;margin-top:6px;">⚠️ No sound is coming in from this input. Check the Audio Input choice above and the input level in your computer\'s sound settings. <a href="#" onclick="ipcRenderer.invoke(\'open-mic-settings\');return false;" style="color:#fbbf24;">Open microphone settings</a></div>'
         : '';
       const side = liveStreaming ? ` <span style="color:#6b7280;font-size:11px;">(${liveChanPick === 'mix' ? 'both channels' : liveChanPick + ' channel'})</span>` : '';
       status.innerHTML = `<span style="color:#ec4899;">● Listening...</span> <span style="color:#10b981;letter-spacing:1px;">${meter}</span>${side}${warn}`;

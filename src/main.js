@@ -1,5 +1,10 @@
 const path = require('path');
 const { app, BrowserWindow, ipcMain, screen, shell, dialog } = require('electron');
+
+// Let the mic meter / live capture start even when the click that began listening has expired
+// (the live-token request can take a few seconds) - otherwise Chromium leaves the audio context
+// suspended and the input looks silent on some Macs.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
 const fs = require('fs');
 const os = require('os');
 const { execFile, execSync } = require('child_process');
@@ -135,6 +140,24 @@ async function checkAuth() {
 // are picked up on refresh-on-signal (app launch, window focus, this handler) rather than
 // pushed live. Re-runs the same church lookup checkAuth() does, then re-sends 'user-data' so
 // the renderer's window._userData.church.plan updates without a full app restart.
+// macOS microphone permission: ask up front so the system prompt appears (and report status)
+ipcMain.handle('mic-access', async (_e, ask) => {
+  if (process.platform !== 'darwin') return 'granted';
+  try {
+    const { systemPreferences } = require('electron');
+    let status = systemPreferences.getMediaAccessStatus('microphone');
+    if (status === 'not-determined' && ask) {
+      await systemPreferences.askForMediaAccess('microphone');
+      status = systemPreferences.getMediaAccessStatus('microphone');
+    }
+    return status;
+  } catch (e) { return 'unknown'; }
+});
+ipcMain.handle('open-mic-settings', () => {
+  if (process.platform === 'darwin') shell.openExternal('x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone');
+  else if (process.platform === 'win32') shell.openExternal('ms-settings:privacy-microphone');
+});
+
 ipcMain.handle('refresh-church', async () => {
   if (!auth || !currentUser) return { success: false, error: 'Not signed in' };
   try {

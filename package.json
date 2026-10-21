@@ -75,7 +75,10 @@
             "arm64"
           ]
         }
-      ]
+      ],
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Studio by Scientist listens to the preacher so it can put the scripture on screen automatically."
+      }
     },
     "win": {
       "icon": "assets/logo.ico",
