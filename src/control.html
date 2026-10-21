@@ -7316,7 +7316,7 @@ function saveSermonNotes() {
 // ============================================
 let mediaRecorder = null;
 let isListening = false;
-let isAutoMode = false;
+let isAutoMode = localStorage.getItem('autoMode') !== '0';   // default ON: the point is hands-free
 let autoAdvanceEnabled = true;
 let pendingSuggestData = null;
 let recentDetections = [];
@@ -7407,6 +7407,8 @@ async function displayVerseAndUpdateState(verse) {
       book: parsed.book, chapter: parsed.chapter, verse: parsed.verse,
       verseText: verse.text, translation: trans
     };
+    livePassage = { book: parsed.book, chapter: parsed.chapter, verse: parsed.verse };
+    if (liveStreaming) liveOffset = liveText.length;   // whatever put this up, listen fresh from here
     loadChapterContext(parsed.book, parsed.chapter, parsed.verse);
   }
   addToRecentDetections(verse.reference, verse.text);
@@ -7545,7 +7547,7 @@ function detectLocally() {
     if (!isRecentlyDetected(reference)) { markAsDetected(reference); showLiveReference(reference); }
     return true;
   }
-  const top = matcher.match(joined)[0];
+  const top = matcher.match(joined, { cursor: livePassage.book ? livePassage : null })[0];
   if (top && top.confidence === 'strong') {
     if (!isRecentlyDetected(top.reference)) { markAsDetected(top.reference); showLiveReference(top.reference); }
     return true;
@@ -7605,6 +7607,12 @@ async function detectAndHandleReference(text) {
     if (statusEl) statusEl.textContent = '';
     return;
   }
+  // Following a passage: the AI re-suggesting an earlier verse of the same chapter must not pull
+  // the screen backwards
+  if (liveStreaming && !result.isStory && liveIsBehind(result.reference)) {
+    if (statusEl) statusEl.textContent = '';
+    return;
+  }
   markAsDetected(result.reference);
   presentDetectedVerse(result.reference, result.verse, result.isStory || false);
 }
@@ -7643,9 +7651,13 @@ function checkVerseCompletion(transcriptChunk) {
 
   if (completionRatio >= 0.85) {
     stopVerseCompletionTracking();
+    const keyNow = () => `${currentDisplayState.book} ${currentDisplayState.chapter}:${currentDisplayState.verse}`;
+    const fromKey = keyNow();
     const nextRef = `${currentDisplayState.book} ${currentDisplayState.chapter}:${currentDisplayState.verse + 1}`;
     setTimeout(async () => {
+      if (keyNow() !== fromKey) return;            // a reference, a tap or the matcher already moved on -- never fight it
       const result = await ipcRenderer.invoke('ai-fetch-verse', nextRef, liveTranslation());
+      if (keyNow() !== fromKey) return;
       if (result.success && result.verse) {
         displayVerseAndUpdateState(result.verse);
         highlightInTranscript(`⏭ Auto: ${nextRef}`);
@@ -7663,7 +7675,17 @@ function checkVerseCompletion(transcriptChunk) {
 // its first few words against the bundled KJV text), so the verse can be on screen before the
 // pastor finishes it. The slower AI check only runs for paraphrases and Bible stories. If the live
 // service can't start, startListening() falls back to the original recorded-chunk mode.
-const { parseReference, formatRef, tokenize: matcherTokenize, VerseIndex } = require('./scriptureMatcher');
+const { parseReference, parseRelative, formatRef, tokenize: matcherTokenize, VerseIndex } = require('./scriptureMatcher');
+
+// Where the pastor is: set by a spoken chapter or reference, a displayed verse or a tap. A human
+// operator always knows this, so "from verse 10" means verse 10 of the chapter just announced, and
+// a verse already read is not shown again. verse is null while only the chapter is known.
+let livePassage = { book: null, chapter: null, verse: null };
+
+function liveIsBehind(reference) {
+  const m = /^(.+?)\s+(\d+):(\d+)/.exec(reference || '');
+  return !!(m && livePassage.book && livePassage.verse && m[1] === livePassage.book && +m[2] === livePassage.chapter && +m[3] < livePassage.verse);
+}
 
 let liveMatcher = null;
 let liveStreaming = false;
@@ -7883,18 +7905,26 @@ function runLiveAnalysis(settled) {
     if (settled || ref.end < ref.tokenCount) liveHandleExplicit(ref);
     return;
   }
-  if (settled && liveLocalNav(tail)) return;
+  // "2 Chronicles chapter 15" -- remember it; the verse usually follows ("from verse 10") or is just read
+  if (ref && ref.chapterOnly && (settled || ref.end < ref.tokenCount)) liveAnnounceChapter(ref);
+  if (liveRelativeNav(tail, settled)) return;
 
-  const cands = liveMatcher.match(tail);
+  const cands = liveMatcher.match(tail, { cursor: livePassage.book ? livePassage : null });
   renderLiveCandidates(cands, ref);
   const top = cands[0];
   if (top && top.confidence === 'strong') liveHandleStrong(top);
   else if (settled) liveMaybeAskAI(words);
 }
 
+function liveAnnounceChapter(ref) {
+  if (livePassage.book === ref.book && livePassage.chapter === ref.chapter) return;
+  livePassage = { book: ref.book, chapter: ref.chapter, verse: null };
+}
+
 function liveHandleExplicit(ref) {
   const reference = `${ref.book} ${ref.chapter}:${ref.verse}`;
   liveOffset = liveText.length;
+  livePassage = { book: ref.book, chapter: ref.chapter, verse: ref.verse };
   if (liveRecent(reference, 6000)) return;
   liveHandled.set(reference, Date.now());
   showLiveReference(reference);
@@ -7909,18 +7939,35 @@ function liveHandleStrong(top) {
   showLiveReference(top.reference);
 }
 
-// "next verse", "previous verse", "verse six" — instant, no AI call
-function liveLocalNav(tail) {
-  if (!currentDisplayState.book) return false;
-  const s = matcherTokenize(tail).slice(-5).join(' ');
-  let nav = null;
-  if (/\b(next|following) verse$/.test(s)) nav = 'NAV:NEXT';
-  else if (/\b(previous|last) verse$/.test(s)) nav = 'NAV:PREV';
-  else { const m = s.match(/\bverse (\d+)$/); if (m) nav = 'NAV:VERSE:' + m[1]; }
-  if (!nav) return false;
-  liveOffset = liveText.length;
-  handleNavCommand(nav);
-  return true;
+// "from verse 10", "verse six", "next verse", "previous verse" -- instant, no AI call, resolved
+// against where the pastor is (the chapter just announced, else the verse on screen)
+function liveRelativeNav(tail, settled) {
+  const base = livePassage.book ? livePassage
+    : (currentDisplayState.book ? { book: currentDisplayState.book, chapter: currentDisplayState.chapter, verse: currentDisplayState.verse } : null);
+  if (!base) return false;
+  const go = (chapter, verse) => {
+    const reference = `${base.book} ${chapter}:${verse}`;
+    liveOffset = liveText.length;
+    if (liveRecent(reference, 4000)) return true;
+    liveHandled.set(reference, Date.now());
+    livePassage = { book: base.book, chapter, verse };
+    showLiveReference(reference);
+    return true;
+  };
+  const rel = parseRelative(tail);
+  if (rel) {
+    // still being spoken ("verse ten ... to twelve")? wait for the number to finish or a pause
+    if (settled || rel.end < rel.tokenCount) return go(rel.chapter || base.chapter, rel.verse);
+    return true;
+  }
+  if (settled && base.verse) {
+    const s = matcherTokenize(tail).slice(-5).join(' ');
+    let d = 0;
+    if (/\b(next|following) verse$/.test(s)) d = 1;
+    else if (/\b(previous|last) verse$/.test(s)) d = -1;
+    if (d && base.verse + d >= 1) return go(base.chapter, base.verse + d);
+  }
+  return false;
 }
 
 // Paraphrases and retold Bible stories still go to the AI, but only on a pause and at most
@@ -8170,14 +8217,20 @@ function updateMicUI(listening) {
 }
 
 // ---- TOGGLES ----
-function toggleAutoMode() {
-  isAutoMode = !isAutoMode;
+function applyAutoModeUI() {
   document.getElementById('autoModeToggle').style.background = isAutoMode ? '#ec4899' : '#374151';
   document.getElementById('autoModeThumb').style.left = isAutoMode ? '25px' : '3px';
   document.getElementById('modeDescription').innerHTML = isAutoMode
     ? '<strong style="color:#ec4899;">Auto Mode:</strong> Scriptures display instantly when detected.'
     : '<strong style="color:#ec4899;">Suggest Mode:</strong> A confirmation banner appears. You click to display.';
 }
+
+function toggleAutoMode() {
+  isAutoMode = !isAutoMode;
+  try { localStorage.setItem('autoMode', isAutoMode ? '1' : '0'); } catch (e) { /* storage unavailable */ }
+  applyAutoModeUI();
+}
+setTimeout(applyAutoModeUI, 0);
 
 function toggleAutoAdvance() {
   autoAdvanceEnabled = !autoAdvanceEnabled;

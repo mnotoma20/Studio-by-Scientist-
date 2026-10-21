@@ -33,6 +33,24 @@ const ALIASES = (() => {
     const maxN = bk === 'John' ? 3 : 2;
     for (let n = 1; n <= maxN; n++) for (const o of ORDINALS[n]) m[`${o} ${bk.toLowerCase()}`] = `${n} ${bk}`;
   }
+  // Abbreviations and short forms that transcripts produce ("Gen 1:1", "2 Chron 15", "Matt 6")
+  const abbr = {
+    gen: 'Genesis', exod: 'Exodus', exo: 'Exodus', lev: 'Leviticus', deut: 'Deuteronomy', josh: 'Joshua', judg: 'Judges',
+    neh: 'Nehemiah', esth: 'Esther', psa: 'Psalms', ps: 'Psalms', prov: 'Proverbs', eccl: 'Ecclesiastes', ecc: 'Ecclesiastes',
+    isa: 'Isaiah', jer: 'Jeremiah', lam: 'Lamentations', ezek: 'Ezekiel', eze: 'Ezekiel', dan: 'Daniel', hos: 'Hosea',
+    obad: 'Obadiah', mic: 'Micah', nah: 'Nahum', hab: 'Habakkuk', zeph: 'Zephaniah', zep: 'Zephaniah', hag: 'Haggai',
+    zech: 'Zechariah', zec: 'Zechariah', mal: 'Malachi', matt: 'Matthew', mat: 'Matthew', mk: 'Mark', mrk: 'Mark',
+    lk: 'Luke', luk: 'Luke', jn: 'John', joh: 'John', rom: 'Romans', gal: 'Galatians', eph: 'Ephesians', phil: 'Philippians',
+    col: 'Colossians', titus: 'Titus', philem: 'Philemon', heb: 'Hebrews', jas: 'James', rev: 'Revelation',
+    chronicle: 'Chronicles'
+  };
+  for (const [k, v] of Object.entries(abbr)) if (v !== 'Chronicles') m[k] = v;
+  const numAbbr = { sam: 'Samuel', kgs: 'Kings', kings: 'Kings', king: 'Kings', chron: 'Chronicles', chr: 'Chronicles', chronicle: 'Chronicles',
+    cor: 'Corinthians', corinthian: 'Corinthians', thess: 'Thessalonians', thes: 'Thessalonians', tim: 'Timothy', pet: 'Peter', jn: 'John', joh: 'John' };
+  for (const [k, base] of Object.entries(numAbbr)) {
+    const maxN = base === 'John' ? 3 : 2;
+    for (let n = 1; n <= maxN; n++) for (const o of ORDINALS[n]) m[`${o} ${k}`] = `${n} ${base}`;
+  }
   return m;
 })();
 
@@ -145,11 +163,44 @@ function parseReference(text) {
     if (/^\d+$/.test(tokens[k] || '')) {
       verse = parseInt(tokens[k], 10); k++;
       if (RANGE_WORDS.has(tokens[k]) && /^\d+$/.test(tokens[k + 1] || '')) { verseEnd = parseInt(tokens[k + 1], 10); k += 2; }
+    } else {
+      // "2 Chronicles chapter 15, please give us from verse 10": a few ordinary words can sit
+      // between the chapter and the verse. Stop at anything that looks like another reference.
+      for (let g = k; g < Math.min(tokens.length, k + 8); g++) {
+        const t = tokens[g];
+        if (/^\d+$/.test(t) || ALIASES[t]) break;
+        if (VERSE_WORDS.has(t) && /^\d+$/.test(tokens[g + 1] || '')) {
+          verse = parseInt(tokens[g + 1], 10); k = g + 2;
+          if (RANGE_WORDS.has(tokens[k]) && /^\d+$/.test(tokens[k + 1] || '')) { verseEnd = parseInt(tokens[k + 1], 10); k += 2; }
+          break;
+        }
+      }
     }
     found = { book, chapter, verse, verseEnd, end: k, tokenCount: tokens.length, chapterOnly: verse === null };
     i = k - 1;
   }
   return found;
+}
+
+// A verse (and optionally chapter) said without a book -- "from verse 10", "verses 5 to 9",
+// "chapter 16 verse 3" -- to be resolved against the passage already being read. Only the most
+// recent such phrase counts, and only when no book name sits right before it (that is a full
+// reference and parseReference handles it).
+function parseRelative(text) {
+  const tokens = tokenize(text);
+  for (let i = tokens.length - 2; i >= 0; i--) {
+    if (!VERSE_WORDS.has(tokens[i]) || !/^\d+$/.test(tokens[i + 1])) continue;
+    let chapter = null, from = i;
+    if (tokens[i - 2] === 'chapter' && /^\d+$/.test(tokens[i - 1])) { chapter = parseInt(tokens[i - 1], 10); from = i - 2; }
+    // a book name just before means a full reference, not a relative one
+    let hasBook = false;
+    for (let b = Math.max(0, from - 3); b < from; b++) if (ALIASES[tokens[b]]) hasBook = true;
+    if (hasBook) return null;
+    let k = i + 2, verseEnd = null;
+    if (RANGE_WORDS.has(tokens[k]) && /^\d+$/.test(tokens[k + 1] || '')) { verseEnd = parseInt(tokens[k + 1], 10); k += 2; }
+    return { chapter, verse: parseInt(tokens[i + 1], 10), verseEnd, end: k, tokenCount: tokens.length };
+  }
+  return null;
 }
 
 function formatRef(r) {
@@ -235,6 +286,22 @@ class VerseIndex {
       const idf = this.idf[id];
       this.postings.get(id).forEach((v) => score.set(v, (score.get(v) || 0) + idf));
     });
+    // Where the pastor already is (cursor = {book, chapter, verse}): the next verses of the same
+    // chapter are far more likely than the same words anywhere else in the Bible, and a verse
+    // already read is unlikely to be wanted again. Behaviour of a human operator who follows along.
+    const cur = opts.cursor && opts.cursor.book ? opts.cursor : null;
+    const relationOf = (v) => {
+      if (!cur) return ['elsewhere', 1];
+      const [b, c, vs] = this.refs[v];
+      if (b !== cur.book || c !== cur.chapter) return ['elsewhere', 1];
+      const cv = cur.verse || 0;
+      if (!cur.verse) return ['ahead', 1.4];             // chapter announced, verse not yet known
+      if (vs === cv) return ['same', 1.2];
+      if (vs > cv && vs <= cv + 8) return ['ahead', 1.5];
+      if (vs < cv) return ['behind', 0.6];
+      return ['far', 1];
+    };
+    if (cur) for (const [v, sc] of score) { const [, m] = relationOf(v); if (m !== 1) score.set(v, sc * m); }
     const top = [...score.entries()].sort((a, b) => b[1] - a[1]).slice(0, 40);
     const winIds = all.map((w) => this.vocab.get(w));
     const out = top.map(([v, base]) => {
@@ -249,29 +316,39 @@ class VerseIndex {
         for (let j = 0; j + 1 < vw.length; j++) if (vw[j] === a && vw[j + 1] === b) { bigrams++; break; }
       }
       const matched = uniq.filter(({ id }) => vw.includes(id)).length;
-      return { v, score: base + bigrams * 2.5, matched, bigrams, vlen: vw.length };
+      // Is it what is being said RIGHT NOW? Informative words among the newest few tokens that are in
+      // this verse. Without it, the tail end of the verse just read (or any earlier phrase) can pull
+      // in a different verse that happens to end the same way.
+      let recent = 0;
+      for (let i = Math.max(0, all.length - 7); i < all.length; i++) {
+        const id = winIds[i];
+        if (id !== undefined && !STOP.has(all[i]) && vw.includes(id)) recent++;
+      }
+      return { v, score: base + bigrams * 2.5, matched, bigrams, recent, vlen: vw.length, rel: relationOf(v)[0] };
     }).filter((o) => o.bigrams >= 3 || (o.matched >= 3 && o.bigrams >= 2)).sort((a, b) => b.score - a.score).slice(0, 5);
     const best = out[0] ? out[0].score : 1;
     return out.map((o, i) => ({
       ref: { book: this.refs[o.v][0], chapter: this.refs[o.v][1], verse: this.refs[o.v][2] },
       reference: `${this.refs[o.v][0]} ${this.refs[o.v][1]}:${this.refs[o.v][2]}`,
       text: this.texts[o.v],
-      score: o.score, matched: o.matched, bigrams: o.bigrams, vlen: o.vlen, informative: uniq.length,
+      score: o.score, matched: o.matched, bigrams: o.bigrams, recent: o.recent, vlen: o.vlen, rel: o.rel, informative: uniq.length,
       lead: i === 0 && out[1] ? o.score / Math.max(out[1].score, 0.001) : (i === 0 ? 9 : 0),
       strength: o.score / best
     })).map((c, i) => {
       // 'strong' = safe to put on screen without asking: a long run of consecutive matching words
       // (or many matched rare words) AND clearly ahead of the runner-up. Everything else that
       // survives is a 'likely' candidate for the operator's list.
-      c.confidence = i === 0 && (
-        (c.bigrams >= 4 && c.matched >= 3 && c.lead >= 1.4) ||
+      const base = (c.bigrams >= 4 && c.matched >= 3 && c.lead >= 1.4) ||
         (c.matched >= 5 && c.bigrams >= 3 && c.lead >= 1.5) ||
         // a short verse that is mostly spoken already (e.g. Psalm 23:1) can't be confused with another
-        (c.bigrams >= 4 && c.bigrams / Math.max(1, c.vlen - 1) >= 0.6 && c.lead >= 1.5)
-      ) ? 'strong' : 'likely';
+        (c.bigrams >= 4 && c.bigrams / Math.max(1, c.vlen - 1) >= 0.6 && c.lead >= 1.5);
+      // Following along in the same chapter, the next verses need less proof; a verse BEHIND where we
+      // are never goes up on its own (only by an explicit reference or a tap)
+      const following = (c.rel === 'ahead' || c.rel === 'same') && c.bigrams >= 3 && c.matched >= 2 && c.lead >= 1.3;
+      c.confidence = i === 0 && c.rel !== 'behind' && c.recent >= 2 && (base || following) ? 'strong' : 'likely';
       return c;
     });
   }
 }
 
-module.exports = { parseReference, formatRef, tokenize, convertNumbers, VerseIndex, BOOKS };
+module.exports = { parseReference, parseRelative, formatRef, tokenize, convertNumbers, VerseIndex, BOOKS };
