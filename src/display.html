@@ -97,14 +97,8 @@
     }
 
     @keyframes fadeIn {
-      from { 
-        opacity: 0;
-        transform: translateY(30px);
-      }
-      to { 
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; }
+      to   { opacity: 1; }
     }
 
     @keyframes deckFade {
@@ -121,14 +115,8 @@
     }
 
     @keyframes slideIn {
-      from {
-        opacity: 0;
-        transform: translateX(-50px);
-      }
-      to {
-        opacity: 1;
-        transform: translateX(0);
-      }
+      from { opacity: 0; }
+      to   { opacity: 1; }
     }
 
     /* Welcome Screen */
@@ -164,7 +152,7 @@
       letter-spacing: 4px;
       text-shadow: 0 0 40px rgba(255, 215, 0, 0.6);
       -webkit-text-stroke: 1px rgba(255,215,0,0.3);
-      animation: slideIn 0.6s ease-out;
+      animation: slideIn 0.9s ease-in-out;
     }
 
     .verse-text {
@@ -177,7 +165,7 @@
       margin: 0 auto;
       text-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
       -webkit-text-stroke: 2px rgba(255,255,255,0.25);
-      animation: slideIn 0.8s ease-out 0.2s both;
+      animation: slideIn 1s ease-in-out 0.1s both;
       white-space: normal;
     }
 
@@ -186,7 +174,7 @@
       font-size: 68px;
       margin-top: 12px;
       font-weight: 700;
-      animation: fadeIn 1s ease-out 0.4s both;
+      animation: fadeIn 1s ease-in-out 0.2s both;
     }
 
     /* Prayer Combined Screen */
@@ -204,7 +192,7 @@
       font-family: 'Arial Black', 'Arial Bold', Arial, sans-serif;
       font-weight: 900;
       margin-bottom: 10px;
-      animation: slideIn 0.6s ease-out;
+      animation: slideIn 0.9s ease-in-out;
     }
 
     .prayer-combined-text {
@@ -216,7 +204,7 @@
       margin-bottom: 16px;
       white-space: pre-wrap;
       -webkit-text-stroke: 1.5px rgba(255,255,255,0.2);
-      animation: slideIn 0.8s ease-out 0.2s both;
+      animation: slideIn 1s ease-in-out 0.1s both;
     }
 
     .prayer-verse-box {
@@ -224,7 +212,7 @@
       border-radius: 14px;
       padding: 16px 32px;
       background: rgba(255, 215, 0, 0.06);
-      animation: fadeIn 1s ease-out 0.4s both;
+      animation: fadeIn 1s ease-in-out 0.2s both;
     }
 
     .prayer-verse-ref {
@@ -391,6 +379,18 @@
   <script>
   const { ipcRenderer } = require('electron');
 
+  // Calm scripture change: hide first so the new text never flashes at full strength, then fade in
+  function restartContentFade() {
+    const c = document.getElementById('content');
+    c.style.animation = 'none';
+    c.style.opacity = '0';
+    setTimeout(() => {
+      c.style.animation = 'fadeIn 1s ease-in-out both';
+      const done = () => { c.style.opacity = ''; c.removeEventListener('animationend', done); };
+      c.addEventListener('animationend', done);
+    }, 30);
+  }
+
   // Strips scripts/event-handlers from operator-authored rich text (bold/underline/font) before rendering
   function sanitizeRichHtml(html) {
     const div = document.createElement('div');
@@ -539,9 +539,8 @@
     verseText.dataset.userSize = '1';
   }
 
-    document.getElementById('content').style.animation = 'none';
+    restartContentFade();
     setTimeout(() => {
-      document.getElementById('content').style.animation = 'fadeIn 0.8s ease-in-out';
       setTimeout(() => autoFitContent(), 50);
     }, 10);
   });
@@ -586,9 +585,8 @@ ipcRenderer.on('show-lyrics', (event, lyricsData) => {
     console.log('✅ Applied lyrics font size:', lyricsData.fontSize + 'px');
   }
   
-  document.getElementById('content').style.animation = 'none';
+  restartContentFade();
   setTimeout(() => {
-    document.getElementById('content').style.animation = 'fadeIn 0.8s ease-in-out';
     requestAnimationFrame(() => autoFitContent());
   }, 10);
 });
@@ -631,9 +629,8 @@ ipcRenderer.on('show-prayer-combined', (event, data) => {
     document.getElementById('prayerVerseRef').style.color       = data.boxColor;
   }
 
-  document.getElementById('content').style.animation = 'none';
+  restartContentFade();
   setTimeout(() => {
-    document.getElementById('content').style.animation = 'fadeIn 0.8s ease-in-out';
     autoFitContent();
   }, 10);
 });
@@ -767,9 +764,8 @@ function applyThemeColors(themeData) {
     verseTrans.textContent = `(${data.verse.translation})`;
 
     // Trigger animation
-    document.getElementById('content').style.animation = 'none';
+    restartContentFade();
     setTimeout(() => {
-      document.getElementById('content').style.animation = 'fadeIn 0.8s ease-in-out';
     }, 10);
   });
 
