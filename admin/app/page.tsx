@@ -144,24 +144,18 @@ export default function LoginPage() {
         >
           {/* Logo */}
           <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-            <div
+            <img
+              src="/logo.png"
+              alt="Studio by Scientist"
               style={{
-                width: '60px',
-                height: '60px',
-                borderRadius: '16px',
-                background: 'linear-gradient(135deg, #a78bfa, #ec4899)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontWeight: 800,
-                fontSize: '24px',
-                color: '#fff',
+                width: '72px',
+                height: '72px',
+                borderRadius: '18px',
+                display: 'block',
                 margin: '0 auto 16px',
                 boxShadow: '0 8px 32px rgba(167,139,250,0.3)',
               }}
-            >
-              S
-            </div>
+            />
             <h1
               style={{
                 fontSize: '24px',

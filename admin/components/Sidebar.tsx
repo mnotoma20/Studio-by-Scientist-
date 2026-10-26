@@ -69,23 +69,11 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
           minHeight: '72px',
         }}
       >
-        <div
-          style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '8px',
-            background: 'linear-gradient(135deg, #a78bfa, #ec4899)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 700,
-            fontSize: '14px',
-            color: '#fff',
-            flexShrink: 0,
-          }}
-        >
-          S
-        </div>
+        <img
+          src="/logo.png"
+          alt="Studio by Scientist"
+          style={{ width: '32px', height: '32px', borderRadius: '8px', flexShrink: 0 }}
+        />
         <AnimatePresence>
           {!collapsed && (
             <motion.span
