@@ -1422,6 +1422,57 @@ ipcMain.handle('reorder-schedule-items', async (event, items) => {
 // AI HANDLERS
 // ============================================
 
+// Studio plan: turn a finished service (live transcript + scriptures shown) into a recap
+ipcMain.handle('generate-service-recap', async (_event, data) => {
+  try {
+    const plan = (currentChurch?.plan || 'free').toLowerCase();
+    if (!isOwner() && plan !== 'studio') {
+      return { success: false, error: 'Service recaps are part of the Studio plan.', upgradeRequired: true };
+    }
+    const transcript = String(data?.transcript || '').slice(-60000);
+    if (transcript.trim().length < 200) {
+      return { success: false, error: 'Not enough was heard yet. Start listening during the service, then generate the recap afterwards.' };
+    }
+    const verses = Array.isArray(data?.verses) ? data.verses.slice(0, 60) : [];
+    const prompt = `You are helping a church media team. Below is an automatic transcript of a church service (it may contain recognition errors, especially names and accents) and the list of Bible verses that were shown on screen.
+
+Write a recap a pastor's team could send to the congregation. Be faithful to the transcript, do not invent things that were not said, and keep a warm, plain tone.
+
+Return only JSON (no markdown) with this exact shape:
+{
+  "title": "A short title for the message",
+  "summary": "3-4 sentence summary",
+  "keyPoints": ["4-6 short key points"],
+  "mainScriptures": ["References the message was mainly built on"],
+  "takeHome": "One sentence the congregation can take home",
+  "shareText": "A short, friendly message (under 600 characters) for the church WhatsApp or email recapping the service"
+}
+
+Scriptures shown on screen: ${verses.length ? verses.join('; ') : 'none recorded'}
+
+Transcript:
+${transcript}`;
+    const aiResult = await aiOpenAI({
+      kind: 'chat',
+      body: {
+        model: 'gpt-4o-mini',
+        max_tokens: 1200,
+        response_format: { type: 'json_object' },
+        messages: [{ role: 'user', content: prompt }]
+      }
+    });
+    if (aiResult._status !== 200) {
+      if (aiResult.upgradeRequired) return { success: false, error: aiResult.error, upgradeRequired: true };
+      return { success: false, error: aiResult.error?.message || aiResult.error || 'AI request failed' };
+    }
+    const recap = JSON.parse(aiResult.choices[0].message.content);
+    return { success: true, recap };
+  } catch (error) {
+    console.error('Error generating service recap:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('generate-sermon-notes', async (_event, data) => {
   try {
     const gate = isFeatureAllowed('sermonNotesAI');

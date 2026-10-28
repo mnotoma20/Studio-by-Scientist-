@@ -2115,6 +2115,16 @@
       </div>
 
       <!-- Recent detections -->
+      <div id="serviceRecapCard" style="margin-top:20px;background:rgba(26,26,46,0.9);border:1px solid rgba(245,158,11,0.3);border-radius:12px;padding:16px 18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#fff;">Service Recap <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,0.15);color:#f59e0b;margin-left:6px;">STUDIO</span></div>
+            <div style="font-size:12px;color:#9ca3af;margin-top:3px;">After the service: summary, key points and a message ready to send to your church.</div>
+          </div>
+          <button id="recapBtn" onclick="generateServiceRecap()" style="padding:9px 16px;background:linear-gradient(135deg,#f59e0b,#ec4899);border:none;border-radius:8px;color:#fff;font-weight:700;font-size:13px;cursor:pointer;">Generate Recap</button>
+        </div>
+        <div id="recapOutput" style="display:none;margin-top:14px;"></div>
+      </div>
       <div id="recentDetectionsPanel" style="display: none; margin-top: 16px;">
         <div style="color: #6b7280; font-size: 11px; font-weight: 700; letter-spacing: 2px; margin-bottom: 10px;">RECENT DETECTIONS</div>
         <div id="recentDetectionsList" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
@@ -8502,12 +8512,56 @@ function highlightInTranscript(label) {
 }
 
 // ---- RECENT DETECTIONS ----
+// ---- SERVICE RECAP (Studio) ----
+let serviceLog = [];   // scriptures shown on screen during the service
+
+async function generateServiceRecap() {
+  const btn = document.getElementById('recapBtn');
+  const out = document.getElementById('recapOutput');
+  if (!isStudioPlan()) { showUpgradeModal('Service recaps are part of the Studio plan.'); return; }
+  btn.disabled = true; btn.textContent = 'Writing recap...';
+  out.style.display = 'block';
+  out.innerHTML = '<div style="color:#9ca3af;font-size:13px;">Reading the service...</div>';
+  const res = await ipcRenderer.invoke('generate-service-recap', { transcript: fullTranscript, verses: serviceLog });
+  btn.disabled = false; btn.textContent = 'Generate Recap';
+  if (!res.success) {
+    if (res.upgradeRequired) { out.style.display = 'none'; showUpgradeModal(res.error); return; }
+    out.innerHTML = '<div style="color:#f59e0b;font-size:13px;"></div>';
+    out.firstChild.textContent = res.error || 'Could not make the recap.';
+    return;
+  }
+  renderServiceRecap(res.recap);
+}
+
+let _recapShareText = '';
+function renderServiceRecap(r) {
+  const esc = t => String(t == null ? '' : t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  _recapShareText = r.shareText || '';
+  const points = (r.keyPoints || []).map(p => `<li style="margin:4px 0;">${esc(p)}</li>`).join('');
+  const verses = (serviceLog.length ? serviceLog : (r.mainScriptures || [])).map(esc).join(' &middot; ');
+  document.getElementById('recapOutput').innerHTML = `
+    <div style="font-size:16px;font-weight:800;color:#fff;">${esc(r.title)}</div>
+    <div style="font-size:13px;color:#d1d5db;margin-top:8px;line-height:1.55;">${esc(r.summary)}</div>
+    <ul style="margin:10px 0 0 18px;padding:0;font-size:13px;color:#e5e7eb;">${points}</ul>
+    ${verses ? `<div style="font-size:12px;color:#a78bfa;margin-top:10px;">Scriptures: ${verses}</div>` : ''}
+    <div style="font-size:13px;color:#fcd34d;margin-top:10px;font-style:italic;">${esc(r.takeHome)}</div>
+    <div style="margin-top:14px;padding:12px;background:rgba(45,45,74,0.6);border-radius:8px;font-size:13px;color:#e5e7eb;white-space:pre-wrap;">${esc(r.shareText)}</div>
+    <button onclick="copyRecapShare(this)" style="margin-top:10px;padding:8px 14px;background:rgba(167,139,250,0.18);border:1px solid rgba(167,139,250,0.5);border-radius:8px;color:#c4b5fd;font-weight:700;font-size:12px;cursor:pointer;">Copy message</button>`;
+}
+
+function copyRecapShare(btn) {
+  try { require('electron').clipboard.writeText(_recapShareText); btn.textContent = 'Copied'; }
+  catch (e) { btn.textContent = 'Could not copy'; }
+  setTimeout(() => { btn.textContent = 'Copy message'; }, 1800);
+}
+
 function addToRecentDetections(reference, verseText) {
   document.getElementById('lastDisplayedCard').style.display = 'block';
   document.getElementById('lastDisplayedRef').textContent = reference;
   const preview = verseText ? verseText.trim().substring(0, 120) : '';
   document.getElementById('lastDisplayedText').textContent = preview ? `"${preview}${verseText.trim().length > 120 ? '...' : ''}"` : '';
 
+  if (!serviceLog.includes(reference)) serviceLog.push(reference);
   recentDetections.unshift({ reference, verseText });
   if (recentDetections.length > 5) recentDetections.pop();
 
@@ -8539,6 +8593,7 @@ async function redisplayVerse(reference) {
 function enterLiveMode() {
   // Already listening: keep the mic, transcript and verse tracking exactly as they are
   if (isListening) return;
+  serviceLog = [];
   fullTranscript = '';
   recentlyDetected = new Map();
   recentTranscriptContext = [];
