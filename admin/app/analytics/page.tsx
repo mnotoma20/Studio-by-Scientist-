@@ -52,10 +52,12 @@ const Empty = ({ icon, text }: { icon: string; text: string }) => (
 
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsData | null>(null)
+  const [revenue, setRevenue] = useState<{ total30: number; payments: number; activeSubs: number; mrr: number; daily: { day: string; amount: number }[]; error?: string } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     fetch('/api/analytics').then(r => r.json()).then(d => { setData(d); setLoading(false) })
+    fetch('/api/revenue').then(r => r.json()).then(setRevenue).catch(() => setRevenue({ total30: 0, payments: 0, activeSubs: 0, mrr: 0, daily: [], error: 'Could not reach Stripe' }))
   }, [])
 
   const skeleton = () => <div style={{ height: 260, background: 'rgba(255,255,255,0.04)', borderRadius: '8px', animation: 'pulse 1.5s ease-in-out infinite' }} />
@@ -148,11 +150,35 @@ export default function AnalyticsPage() {
         </Card>
       </div>
 
-      <Card title="Revenue Over Time" delay={0.25}>
-        <div style={{ height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 40 }}>💰</div>
-          <div style={{ color: '#6b7280', fontSize: 14 }}>Connect Stripe to see revenue data</div>
-        </div>
+      <Card title="Revenue Over Time (30 days)" delay={0.25}>
+        {!revenue ? skeleton() : revenue.error ? (
+          <Empty icon="💰" text={`Stripe: ${revenue.error}`} />
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            <div style={{ display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+              {[
+                { label: 'Collected (30 days)', value: `$${revenue.total30.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+                { label: 'Payments', value: String(revenue.payments) },
+                { label: 'Active subscriptions', value: String(revenue.activeSubs) },
+                { label: 'Monthly recurring', value: `$${revenue.mrr.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
+              ].map(s => (
+                <div key={s.label}>
+                  <div style={{ fontSize: 12, color: '#9ca3af' }}>{s.label}</div>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#fff' }}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={revenue.daily}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(167,139,250,0.08)" />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: '#6b7280' }} tickLine={false} axisLine={false} interval={4} />
+                <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} tickLine={false} axisLine={false} width={40} />
+                <Tooltip content={<DarkTooltip />} />
+                <Area type="monotone" dataKey="amount" stroke="#10b981" fill="rgba(16,185,129,0.2)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </Card>
 
       <style>{`@keyframes pulse{0%,100%{opacity:.6}50%{opacity:1}}`}</style>
