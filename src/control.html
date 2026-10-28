@@ -1097,6 +1097,12 @@
   </div>
 </div>
 
+<div id="listeningPill" onclick="openListeningView()" title="Listening for scripture - click to go back to Live Mode"
+  style="display:none;position:fixed;bottom:18px;right:18px;z-index:9998;align-items:center;gap:8px;padding:10px 16px;border-radius:999px;background:rgba(26,26,46,0.96);border:1px solid rgba(236,72,153,0.6);color:#fff;font-size:13px;font-weight:600;cursor:pointer;box-shadow:0 8px 30px rgba(236,72,153,0.25);">
+  <span style="width:10px;height:10px;border-radius:50%;background:#ec4899;animation:pulse 1.5s ease-in-out infinite;"></span>
+  Listening for scripture
+  <span style="color:#9ca3af;font-weight:500;font-size:12px;">Tap to return</span>
+</div>
 <div id="tourLayer"></div>
 
     <div class="content-area">
@@ -3205,6 +3211,7 @@
 // ============================================
 
 // Menu switching
+document.querySelectorAll('.menu-item').forEach(i => i.addEventListener('click', () => setTimeout(refreshListeningPill, 80)));
 document.querySelectorAll('.menu-item').forEach((item, index) => {
   item.addEventListener('click', () => {
     console.log('🔍 CLICKED INDEX:', index);
@@ -6934,7 +6941,7 @@ function switchSermonMode(mode) {
 }
 
 function loadSermonNotesTab() {
-  switchSermonMode('prep');
+  switchSermonMode(isListening ? 'live' : 'prep');
   refreshAudioDevices();
 }
 
@@ -8246,6 +8253,20 @@ function startLevelMonitor(stream) {
   }
 }
 
+function refreshListeningPill() {
+  const pill = document.getElementById('listeningPill');
+  if (!pill) return;
+  const sermon = document.getElementById('sermonNotesContent');
+  const live = document.getElementById('liveModeContent');
+  const onLiveView = sermon && sermon.style.display !== 'none' && live && live.style.display !== 'none';
+  pill.style.display = (isListening && !onLiveView) ? 'flex' : 'none';
+}
+
+function openListeningView() {
+  document.getElementById('sermonNotesMenuItem')?.click();
+  setTimeout(() => { switchSermonMode('live'); refreshListeningPill(); }, 60);
+}
+
 function updateMicUI(listening) {
   const btn = document.getElementById('micBtn');
   const status = document.getElementById('listeningStatus');
@@ -8266,6 +8287,7 @@ function updateMicUI(listening) {
     if (detStatus) detStatus.textContent = '';
   }
   lucide.createIcons();
+  refreshListeningPill();
 }
 
 // ---- TOGGLES ----
@@ -8489,7 +8511,8 @@ async function redisplayVerse(reference) {
 
 // ---- RESET ----
 function enterLiveMode() {
-  if (isListening) stopListening();
+  // Already listening: keep the mic, transcript and verse tracking exactly as they are
+  if (isListening) return;
   fullTranscript = '';
   recentlyDetected = new Map();
   recentTranscriptContext = [];
