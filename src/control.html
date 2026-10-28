@@ -2055,6 +2055,7 @@
         </button>
         <div id="listeningStatus" style="color: #6b7280; font-size: 14px;">Click mic to start listening</div>
         <div id="detectionStatus" style="color: #6b7280; font-size: 12px; margin-top: 8px; min-height: 16px; text-align: center;"></div>
+        <div id="followingLine" style="display:none;margin-top:10px;padding:7px 14px;border-radius:999px;background:rgba(167,139,250,0.12);border:1px solid rgba(167,139,250,0.35);color:#e9d5ff;font-size:13px;text-align:center;"></div>
       </div>
 
       <!-- Live scripture matches — updates word by word while the pastor speaks -->
@@ -7123,7 +7124,7 @@ async function refreshAudioDevices(manual) {
   const diag = document.getElementById('audioDiagnostics');
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
-    const perm = await ipcRenderer.invoke('mic-access', true);
+    const perm = await ipcRenderer.invoke('mic-access', true).catch(() => 'unknown');
     let devices = await navigator.mediaDevices.enumerateDevices();
     // Without mic access Chromium hides device names; open the mic briefly so they appear
     if (perm !== 'denied' && devices.some(d => d.kind === 'audioinput' && !d.label)) {
@@ -8253,6 +8254,28 @@ function startLevelMonitor(stream) {
   }
 }
 
+// "Following" line: shows the operator what live listening thinks is going on
+let _followTimer = null;
+function renderFollowing() {
+  const el = document.getElementById('followingLine');
+  if (!el) return;
+  if (!isListening) { el.style.display = 'none'; return; }
+  const esc = t => String(t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+  const shown = currentDisplayState && currentDisplayState.book ? currentDisplayState : null;
+  let text;
+  if (liveRange && shown && shown.book === liveRange.book && shown.chapter === liveRange.chapter) {
+    text = `<b>${esc(liveRange.book)} ${liveRange.chapter}</b>, verses ${liveRange.start}\u2013${liveRange.end} \u00b7 now on <b>${shown.verse}</b>`;
+  } else if (livePassage.book && !livePassage.verse) {
+    text = `<b>${esc(livePassage.book)} ${livePassage.chapter}</b> \u00b7 waiting for the verse`;
+  } else if (shown) {
+    text = `<b>${esc(shown.book)} ${shown.chapter}:${shown.verse}</b>`;
+  } else {
+    text = 'waiting for a scripture\u2026';
+  }
+  el.innerHTML = 'Following: ' + text;
+  el.style.display = 'block';
+}
+
 function refreshListeningPill() {
   const pill = document.getElementById('listeningPill');
   if (!pill) return;
@@ -8288,6 +8311,9 @@ function updateMicUI(listening) {
   }
   lucide.createIcons();
   refreshListeningPill();
+  clearInterval(_followTimer);
+  _followTimer = listening ? setInterval(renderFollowing, 400) : null;
+  renderFollowing();
 }
 
 // ---- TOGGLES ----
