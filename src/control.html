@@ -2391,6 +2391,23 @@
       </button>
     </div>
 
+    <!-- PHONE REMOTE -->
+    <div class="settings-card" style="margin-bottom: 20px;">
+      <div class="settings-card-header">
+        <i data-lucide="smartphone" style="width: 20px; height: 20px; color: #a78bfa;"></i>
+        <h3>Phone Remote <span style="font-size:11px;color:#a78bfa;font-weight:700;margin-left:6px;">STUDIO</span></h3>
+      </div>
+      <p style="color:#9ca3af;font-size:13px;margin:0 0 14px 0;line-height:1.5;">Control the screen from a phone: Next, Previous, Blank, Logo, or type a verse. The phone must be on the same Wi-Fi as this computer. Turn it off when the service ends.</p>
+      <button id="remoteBtn" class="btn btn-primary" onclick="toggleRemote()">Turn on phone remote</button>
+      <div id="remoteBox" data-on="0" style="display:none;gap:18px;align-items:center;margin-top:16px;flex-wrap:wrap;">
+        <img id="remoteQr" alt="QR code" style="width:180px;height:180px;border-radius:10px;background:#fff;padding:6px;">
+        <div style="flex:1;min-width:200px;color:#d1d5db;font-size:13px;line-height:1.6;">
+          <b>1.</b> Open your phone camera<br><b>2.</b> Point it at this code<br><b>3.</b> Tap the link that appears
+          <div id="remoteUrl" style="color:#6b7280;font-size:11px;margin-top:10px;word-break:break-all;"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- ACCOUNT -->
     <div class="settings-card" style="margin-bottom: 20px;">
       <div class="settings-card-header">
@@ -3534,6 +3551,90 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+
+// ============================================
+// PHONE REMOTE 📱 -- commands arrive from main.js (phone page on the church Wi-Fi)
+// ============================================
+ipcRenderer.on('remote-command', async (_e, req) => {
+  let result;
+  try { result = await runRemoteCommand(req); } catch (err) { result = { success: false, error: err.message }; }
+  ipcRenderer.send('remote-reply', { id: req.id, result: result || { success: true } });
+});
+
+async function runRemoteCommand({ cmd, ref }) {
+  if (cmd === 'blank') { ipcRenderer.send('clear-screen'); return { success: true }; }
+  if (cmd === 'logo') {
+    if (logoBackground && logoBackground.image_url) ipcRenderer.send('display-background', logoBackground.image_url);
+    else ipcRenderer.send('clear-screen');
+    return { success: true };
+  }
+  if (cmd === 'verse') {
+    const result = await ipcRenderer.invoke('ai-fetch-verse', ref, liveTranslation());
+    if (!result.success || !result.verse) return { success: false, error: 'Could not find "' + ref + '"' };
+    await displayVerseAndUpdateState(result.verse);
+    return { success: true };
+  }
+  if (cmd === 'next' || cmd === 'prev') {
+    const dir = cmd === 'next' ? 1 : -1;
+    const tabText = document.querySelector('.menu-item.active')?.textContent.trim() || '';
+    if (tabText.includes('Schedule') && scheduleItems.length) {
+      const i = currentScheduleItemIndex + dir;
+      if (i < 0 || i >= scheduleItems.length) return { success: false, error: dir > 0 ? 'End of the schedule' : 'Start of the schedule' };
+      const item = scheduleItems[currentScheduleItemIndex];
+      // mid-sequential prayer: the first "next" shows the verse without moving on
+      if (dir > 0 && item?.type === 'prayer' && item.content?.mode === 'sequential' && prayerDisplayStep === 1) displayScheduleItem();
+      else { selectScheduleItem(i); displayScheduleItem(); }
+      return { success: true };
+    }
+    if (tabText.includes('Songs') && currentSong && selectedSection !== null) {
+      const i = selectedSection + dir;
+      if (i < 0 || i >= currentSong.sections.length) return { success: false, error: dir > 0 ? 'Last part of the song' : 'First part of the song' };
+      selectSection(i);
+      displaySelectedSection();
+      return { success: true };
+    }
+    if (currentDisplayState.book) {
+      await handleNavCommand(dir > 0 ? 'NAV:NEXT' : 'NAV:PREV');
+      return { success: true };
+    }
+    if (tabText.includes('Bible')) {
+      const verses = Array.from(document.querySelectorAll('.verse-item'));
+      const at = verses.indexOf(document.querySelector('.verse-item.selected'));
+      const target = verses[at + dir];
+      if (at < 0 || !target) return { success: false, error: 'Pick a verse on the computer first' };
+      target.click();
+      displayVerse();
+      return { success: true };
+    }
+    return { success: false, error: 'Nothing to move from yet. Show something first.' };
+  }
+  return { success: false, error: 'Unknown command' };
+}
+
+// Settings card: start/stop the remote and show the QR code
+async function toggleRemote() {
+  const box = document.getElementById('remoteBox');
+  const btn = document.getElementById('remoteBtn');
+  if (box.dataset.on === '1') {
+    await ipcRenderer.invoke('remote-stop');
+    box.dataset.on = '0'; box.style.display = 'none';
+    btn.textContent = 'Turn on phone remote';
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Starting...';
+  const r = await ipcRenderer.invoke('remote-start');
+  btn.disabled = false;
+  if (!r.success) {
+    btn.textContent = 'Turn on phone remote';
+    if (r.upgradeRequired && typeof showUpgradeModal === 'function') showUpgradeModal(r.error);
+    else alert(r.error || 'Could not start the phone remote');
+    return;
+  }
+  document.getElementById('remoteQr').src = r.qr;
+  document.getElementById('remoteUrl').textContent = r.url.replace(/\?t=.*/, '');
+  box.dataset.on = '1'; box.style.display = 'flex';
+  btn.textContent = 'Turn off phone remote';
+}
 
 console.log('⌨️ Keyboard shortcuts loaded!');
 

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Studio Remote</title>
+<style>
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; min-height: 100vh; background: #0f0f1a; color: #fff; font-family: -apple-system, system-ui, sans-serif; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { font-size: 15px; margin: 0; color: #a78bfa; letter-spacing: .5px; display: flex; justify-content: space-between; align-items: center; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: #ef4444; }
+  .dot.ok { background: #22c55e; }
+  .now { background: #1a1a2e; border: 1px solid rgba(167,139,250,.25); border-radius: 14px; padding: 14px; min-height: 96px; }
+  .now small { color: #9ca3af; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+  .now .ref { font-weight: 800; font-size: 18px; margin: 4px 0; }
+  .now .txt { color: #d1d5db; font-size: 14px; line-height: 1.4; max-height: 90px; overflow: hidden; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  button { border: 0; border-radius: 16px; color: #fff; font-weight: 800; font-size: 18px; padding: 22px 8px; background: #2d2d4a; touch-action: manipulation; }
+  button:active { transform: scale(.97); filter: brightness(1.25); }
+  .big { background: linear-gradient(135deg, #ec4899, #a78bfa); font-size: 24px; padding: 36px 8px; }
+  .verse { display: flex; gap: 8px; }
+  .verse input { flex: 1; min-width: 0; padding: 16px; border-radius: 14px; border: 1px solid rgba(167,139,250,.3); background: #1a1a2e; color: #fff; font-size: 17px; outline: none; }
+  .verse button { padding: 0 20px; font-size: 16px; background: #7c3aed; }
+  .msg { text-align: center; font-size: 13px; color: #9ca3af; min-height: 18px; }
+  .msg.err { color: #fca5a5; }
+</style>
+</head>
+<body>
+  <h1><span>STUDIO REMOTE</span><span class="dot" id="dot"></span></h1>
+  <div class="now">
+    <small>On screen now</small>
+    <div class="ref" id="ref">Nothing</div>
+    <div class="txt" id="txt"></div>
+  </div>
+  <div class="row">
+    <button onclick="send('prev')">◀ Previous</button>
+    <button class="big" onclick="send('next')" style="grid-row: span 1">Next ▶</button>
+  </div>
+  <div class="row">
+    <button onclick="send('blank')">⬛ Blank</button>
+    <button onclick="send('logo')">🖼 Logo</button>
+  </div>
+  <form class="verse" onsubmit="event.preventDefault(); sendVerse();">
+    <input id="ref-in" placeholder="John 3:16" autocapitalize="words" autocomplete="off" enterkeyhint="go">
+    <button type="submit">Show</button>
+  </form>
+  <div class="msg" id="msg"></div>
+<script>
+  const T = new URLSearchParams(location.search).get('t');
+  const $ = (id) => document.getElementById(id);
+  let msgTimer;
+  function say(text, err) {
+    $('msg').textContent = text; $('msg').className = 'msg' + (err ? ' err' : '');
+    clearTimeout(msgTimer); msgTimer = setTimeout(() => { $('msg').textContent = ''; }, 3000);
+  }
+  async function post(body) {
+    const r = await fetch('/cmd?t=' + T, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    return r.json();
+  }
+  async function send(cmd) {
+    if (navigator.vibrate) navigator.vibrate(15);
+    try {
+      const r = await post({ cmd });
+      if (!r.success) say(r.error || 'Could not do that', true);
+      poll();
+    } catch (e) { say('Lost connection to Studio', true); }
+  }
+  async function sendVerse() {
+    const ref = $('ref-in').value.trim();
+    if (!ref) return;
+    try {
+      const r = await post({ cmd: 'verse', ref });
+      if (r.success) { $('ref-in').value = ''; $('ref-in').blur(); say('Sent'); }
+      else say(r.error || 'Could not find that verse', true);
+      poll();
+    } catch (e) { say('Lost connection to Studio', true); }
+  }
+  async function poll() {
+    try {
+      const s = await (await fetch('/state?t=' + T)).json();
+      $('dot').className = 'dot ok';
+      $('ref').textContent = s.ref || 'Nothing';
+      $('txt').textContent = s.text || '';
+    } catch (e) { $('dot').className = 'dot'; }
+  }
+  poll(); setInterval(poll, 2000);
+</script>
+</body>
+</html>

@@ -759,8 +759,13 @@ function trackEvent(event, data = {}) {
 // ============================================
 // IPC Handlers for Bible Display
 // ============================================
+// What is on screen right now, for the phone remote's "On screen now" box
+let remoteShown = null;
+
 ipcMain.on('display-verse', (event, verseData) => {
   console.log('📺 Display verse:', verseData.ref || verseData.reference);
+  const first = (verseData.verses && verseData.verses[0]) || verseData;
+  remoteShown = { ref: verseData.ref || verseData.reference || first.reference || '', text: String(verseData.text || first.text || '').trim().slice(0, 240) };
   broadcastToDisplays('show-verse', verseData);
   broadcastToDisplays('item-went-live', { startedAt: Date.now() }, 'confidence');
   trackEvent('verse_displayed', { reference: verseData.reference || verseData.ref, translation: verseData.translation });
@@ -774,6 +779,7 @@ ipcMain.on('set-box-layout', (_event, layout) => {
 
 ipcMain.on('clear-screen', () => {
   console.log('🧹 Clear display');
+  remoteShown = null;
   broadcastToDisplays('clear-display', null);
 });
 
@@ -864,6 +870,7 @@ ipcMain.handle('delete-song', async (event, songId) => {
 
 // Display lyrics
 ipcMain.on('display-lyrics', (event, lyricsData) => {
+  remoteShown = { ref: lyricsData.title || 'Song', text: String(lyricsData.lyrics || '').trim().slice(0, 240) };
   console.log('📺 Displaying lyrics:', lyricsData.title);
   broadcastToDisplays('show-lyrics', lyricsData);
   broadcastToDisplays('item-went-live', { startedAt: Date.now() }, 'confidence');
@@ -1421,6 +1428,46 @@ ipcMain.handle('reorder-schedule-items', async (event, items) => {
 // ============================================
 // AI HANDLERS
 // ============================================
+
+// ---- Phone Remote (Studio plan): phone page on the church Wi-Fi sends commands to the control window ----
+const remoteServer = require('./remoteServer');
+let remoteReqId = 0;
+const remotePending = new Map();
+
+function remoteCommand(cmd) {
+  return new Promise((resolve) => {
+    if (!controlWindow || controlWindow.isDestroyed()) return resolve({ success: false, error: 'Studio is not open' });
+    const id = ++remoteReqId;
+    const timer = setTimeout(() => { remotePending.delete(id); resolve({ success: false, error: 'Studio did not respond' }); }, 8000);
+    remotePending.set(id, (result) => { clearTimeout(timer); resolve(result); });
+    controlWindow.webContents.send('remote-command', { id, ...cmd });
+  });
+}
+
+ipcMain.on('remote-reply', (_e, { id, result }) => {
+  const done = remotePending.get(id);
+  if (done) { remotePending.delete(id); done(result || { success: true }); }
+});
+
+ipcMain.handle('remote-start', async () => {
+  try {
+    const plan = (currentChurch?.plan || 'free').toLowerCase();
+    if (!isOwner() && plan !== 'studio') {
+      return { success: false, error: 'The phone remote is part of the Studio plan.', upgradeRequired: true };
+    }
+    const info = await remoteServer.start(remoteCommand, () => remoteShown || {});
+    return { success: true, ...info };
+  } catch (e) {
+    return { success: false, error: e.message };
+  }
+});
+
+ipcMain.handle('remote-stop', async () => {
+  await remoteServer.stop();
+  return { success: true };
+});
+
+app.on('before-quit', () => { remoteServer.stop(); });
 
 // Studio plan: turn a finished service (live transcript + scriptures shown) into a recap
 ipcMain.handle('generate-service-recap', async (_event, data) => {
