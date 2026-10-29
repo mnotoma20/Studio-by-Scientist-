@@ -3555,6 +3555,24 @@ document.addEventListener('keydown', (e) => {
 // ============================================
 // PHONE REMOTE 📱 -- commands arrive from main.js (phone page on the church Wi-Fi)
 // ============================================
+// Live Mode status for the phone remote (plain text version of the Following line)
+function pushRemoteLive() {
+  let following = '';
+  if (isListening) {
+    const shown = currentDisplayState && currentDisplayState.book ? currentDisplayState : null;
+    if (liveRange && shown && shown.book === liveRange.book && shown.chapter === liveRange.chapter) {
+      following = `${liveRange.book} ${liveRange.chapter}, verses ${liveRange.start}-${liveRange.end} \u00b7 now on ${shown.verse}`;
+    } else if (livePassage.book && !livePassage.verse) {
+      following = `${livePassage.book} ${livePassage.chapter} \u00b7 waiting for the verse`;
+    } else if (shown) {
+      following = `${shown.book} ${shown.chapter}:${shown.verse}`;
+    } else {
+      following = 'waiting for a scripture...';
+    }
+  }
+  ipcRenderer.send('remote-live', { listening: !!isListening, following, recent: recentDetections.slice(0, 5).map(r => r.reference) });
+}
+
 ipcRenderer.on('remote-command', async (_e, req) => {
   let result;
   try { result = await runRemoteCommand(req); } catch (err) { result = { success: false, error: err.message }; }
@@ -3562,6 +3580,13 @@ ipcRenderer.on('remote-command', async (_e, req) => {
 });
 
 async function runRemoteCommand({ cmd, ref }) {
+  if (cmd === 'listen-start' || cmd === 'listen-stop') {
+    const want = cmd === 'listen-start';
+    if (want && !isListening) await startListening();
+    else if (!want && isListening) stopListening();
+    pushRemoteLive();
+    return { success: want === isListening, error: want && !isListening ? 'Could not start listening. Check the microphone on the computer.' : undefined };
+  }
   if (cmd === 'blank') { ipcRenderer.send('clear-screen'); return { success: true }; }
   if (cmd === 'logo') {
     if (logoBackground && logoBackground.image_url) ipcRenderer.send('display-background', logoBackground.image_url);
@@ -8368,6 +8393,7 @@ function startLevelMonitor(stream) {
 // "Following" line: shows the operator what live listening thinks is going on
 let _followTimer = null;
 function renderFollowing() {
+  pushRemoteLive();
   const el = document.getElementById('followingLine');
   if (!el) return;
   if (!isListening) { el.style.display = 'none'; return; }
@@ -8665,6 +8691,7 @@ function addToRecentDetections(reference, verseText) {
   if (!serviceLog.includes(reference)) serviceLog.push(reference);
   recentDetections.unshift({ reference, verseText });
   if (recentDetections.length > 5) recentDetections.pop();
+  pushRemoteLive();
 
   const container = document.getElementById('recentDetectionsPanel');
   const list = document.getElementById('recentDetectionsList');

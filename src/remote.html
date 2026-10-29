@@ -21,6 +21,15 @@
   .verse { display: flex; gap: 8px; }
   .verse input { flex: 1; min-width: 0; padding: 16px; border-radius: 14px; border: 1px solid rgba(167,139,250,.3); background: #1a1a2e; color: #fff; font-size: 17px; outline: none; }
   .verse button { padding: 0 20px; font-size: 16px; background: #7c3aed; }
+  html { background: #0f0f1a; }
+  .live { background: #1a1a2e; border: 1px solid rgba(236,72,153,.3); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .live small { color: #9ca3af; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+  .listen { background: #2d2d4a; padding: 20px 8px; }
+  .listen.on { background: #dc2626; }
+  .follow { font-size: 14px; color: #f9a8d4; min-height: 18px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { padding: 10px 14px; font-size: 14px; border-radius: 999px; background: #2d2d4a; font-weight: 600; }
+  #boot { color: #9ca3af; font-size: 13px; text-align: center; }
   .msg { text-align: center; font-size: 13px; color: #9ca3af; min-height: 18px; }
   .msg.err { color: #fca5a5; }
 </style>
@@ -44,7 +53,14 @@
     <input id="ref-in" placeholder="John 3:16" autocapitalize="words" autocomplete="off" enterkeyhint="go">
     <button type="submit">Show</button>
   </form>
+  <div class="live">
+    <small>Live Mode (AI listening)</small>
+    <button class="listen" id="listenBtn" onclick="toggleListen()">🎙 Start listening</button>
+    <div class="follow" id="follow"></div>
+    <div class="chips" id="chips"></div>
+  </div>
   <div class="msg" id="msg"></div>
+  <div id="boot">Connecting to Studio...</div>
 <script>
   const T = new URLSearchParams(location.search).get('t');
   const $ = (id) => document.getElementById(id);
@@ -75,13 +91,29 @@
       poll();
     } catch (e) { say('Lost connection to Studio', true); }
   }
+  let listening = false;
+  function toggleListen() { send(listening ? 'listen-stop' : 'listen-start'); }
+  window.onerror = (m) => { $('boot').style.display = 'block'; $('boot').textContent = 'Page error: ' + m; };
   async function poll() {
     try {
       const s = await (await fetch('/state?t=' + T)).json();
       $('dot').className = 'dot ok';
       $('ref').textContent = s.ref || 'Nothing';
       $('txt').textContent = s.text || '';
-    } catch (e) { $('dot').className = 'dot'; }
+      $('boot').style.display = 'none';
+      const l = s.live || {};
+      listening = !!l.listening;
+      $('listenBtn').className = 'listen' + (listening ? ' on' : '');
+      $('listenBtn').textContent = listening ? '⏹ Stop listening' : '🎙 Start listening';
+      $('follow').textContent = listening && l.following ? 'Following: ' + l.following : '';
+      $('chips').innerHTML = '';
+      (l.recent || []).forEach((r) => {
+        const b = document.createElement('button');
+        b.className = 'chip'; b.textContent = r;
+        b.onclick = () => { $('ref-in').value = r; sendVerse(); };
+        $('chips').appendChild(b);
+      });
+    } catch (e) { $('dot').className = 'dot'; $('boot').style.display = 'block'; $('boot').textContent = 'Cannot reach Studio. Is the phone on the same Wi-Fi?'; }
   }
   poll(); setInterval(poll, 2000);
 </script>

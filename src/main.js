@@ -761,6 +761,8 @@ function trackEvent(event, data = {}) {
 // ============================================
 // What is on screen right now, for the phone remote's "On screen now" box
 let remoteShown = null;
+let remoteLive = { listening: false, following: '', recent: [] };
+ipcMain.on('remote-live', (_e, live) => { remoteLive = live || remoteLive; });
 
 ipcMain.on('display-verse', (event, verseData) => {
   console.log('📺 Display verse:', verseData.ref || verseData.reference);
@@ -1455,7 +1457,7 @@ ipcMain.handle('remote-start', async () => {
     if (!isOwner() && plan !== 'studio') {
       return { success: false, error: 'The phone remote is part of the Studio plan.', upgradeRequired: true };
     }
-    const info = await remoteServer.start(remoteCommand, () => remoteShown || {});
+    const info = await remoteServer.start(remoteCommand, () => ({ ...(remoteShown || {}), live: remoteLive }));
     return { success: true, ...info };
   } catch (e) {
     return { success: false, error: e.message };

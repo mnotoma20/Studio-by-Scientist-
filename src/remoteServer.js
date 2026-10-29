@@ -52,7 +52,7 @@ async function onRequest(req, res) {
   }
   if (req.method === 'POST' && url.pathname === '/cmd') {
     const body = await readBody(req);
-    const allowed = ['next', 'prev', 'blank', 'logo', 'verse'];
+    const allowed = ['next', 'prev', 'blank', 'logo', 'verse', 'listen-start', 'listen-stop'];
     if (!allowed.includes(body.cmd)) return send(res, 400, { success: false, error: 'Unknown command' });
     try {
       const result = await handler({ cmd: body.cmd, ref: String(body.ref || '').slice(0, 80) });
