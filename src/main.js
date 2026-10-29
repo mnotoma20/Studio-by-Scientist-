@@ -1432,7 +1432,7 @@ ipcMain.handle('reorder-schedule-items', async (event, items) => {
 // ============================================
 
 // ---- Phone Remote (Studio plan): phone page on the church Wi-Fi sends commands to the control window ----
-const remoteServer = require('./remoteServer');
+const remoteRelay = require('./remoteRelay');
 let remoteReqId = 0;
 const remotePending = new Map();
 
@@ -1453,23 +1453,24 @@ ipcMain.on('remote-reply', (_e, { id, result }) => {
 
 ipcMain.handle('remote-start', async () => {
   try {
-    const plan = (currentChurch?.plan || 'free').toLowerCase();
-    if (!isOwner() && plan !== 'studio') {
-      return { success: false, error: 'The phone remote is part of the Studio plan.', upgradeRequired: true };
-    }
-    const info = await remoteServer.start(remoteCommand, () => ({ ...(remoteShown || {}), live: remoteLive }));
+    const info = await remoteRelay.start({
+      post: adminPost,
+      baseUrl: adminBaseUrl(),
+      onCommand: remoteCommand,
+      getState: () => ({ ...(remoteShown || {}), live: remoteLive }),
+    });
     return { success: true, ...info };
   } catch (e) {
-    return { success: false, error: e.message };
+    return { success: false, error: e.message, upgradeRequired: !!e.upgradeRequired };
   }
 });
 
 ipcMain.handle('remote-stop', async () => {
-  await remoteServer.stop();
+  await remoteRelay.stop();
   return { success: true };
 });
 
-app.on('before-quit', () => { remoteServer.stop(); });
+app.on('before-quit', () => { remoteRelay.stop(); });
 
 // Studio plan: turn a finished service (live transcript + scriptures shown) into a recap
 ipcMain.handle('generate-service-recap', async (_event, data) => {

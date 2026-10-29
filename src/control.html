@@ -2397,13 +2397,13 @@
         <i data-lucide="smartphone" style="width: 20px; height: 20px; color: #a78bfa;"></i>
         <h3>Phone Remote <span style="font-size:11px;color:#a78bfa;font-weight:700;margin-left:6px;">STUDIO</span></h3>
       </div>
-      <p style="color:#9ca3af;font-size:13px;margin:0 0 14px 0;line-height:1.5;">Control the screen from a phone: Next, Previous, Blank, Logo, or type a verse. The phone must be on the same Wi-Fi as this computer. Turn it off when the service ends.</p>
+      <p style="color:#9ca3af;font-size:13px;margin:0 0 14px 0;line-height:1.5;">Control the screen from a phone: Next, Previous, Blank, Logo, start or stop AI listening, or type a verse. Turn it off when the service ends.</p>
       <button id="remoteBtn" class="btn btn-primary" onclick="toggleRemote()">Turn on phone remote</button>
       <div id="remoteBox" data-on="0" style="display:none;gap:18px;align-items:center;margin-top:16px;flex-wrap:wrap;">
         <img id="remoteQr" alt="QR code" style="width:180px;height:180px;border-radius:10px;background:#fff;padding:6px;">
         <div style="flex:1;min-width:200px;color:#d1d5db;font-size:13px;line-height:1.6;">
           <b>1.</b> Open your phone camera<br><b>2.</b> Point it at this code<br><b>3.</b> Tap the link that appears
-          <div style="color:#6b7280;font-size:12px;margin-top:10px;">Phone and computer must be on the same Wi-Fi.</div>
+          <div style="color:#6b7280;font-size:12px;margin-top:10px;">Works on any Wi-Fi or mobile data. Studio needs internet.</div>
         </div>
       </div>
     </div>
@@ -2747,15 +2747,18 @@
     if (_chapterCache[cacheKey]) {
       allVerses = _chapterCache[cacheKey];
       renderVerses();
-      return;
+      return true;
     }
 
+    // From here the old chapter's verses must not survive a failed load -- they would be selected
+    // and shown as if they were the chapter the operator asked for.
+    allVerses = [];
     try {
       const data = await ipcRenderer.invoke('fetch-bible-chapter', { book: currentBook.name, chapter: currentChapter, translation: trans });
 
       if (!data.success || !data.verses) {
-        document.getElementById('versesContainer').innerHTML = `<div style="text-align:center;padding:30px;color:#ff4444;">❌ ${data.error || 'Could not load chapter'}</div>`;
-        return;
+        document.getElementById('versesContainer').innerHTML = `<div style="text-align:center;padding:30px;color:#ff4444;">❌ Could not load ${currentBook.name} ${currentChapter}. Check the internet connection.</div>`;
+        return false;
       }
 
       allVerses = data.verses.map(v => ({
@@ -2768,10 +2771,12 @@
 
       renderVerses();
       console.log(`✅ Loaded ${currentBook.name} ${currentChapter} (${allVerses.length} verses)`);
+      return true;
 
     } catch (err) {
       console.error('Error:', err);
-      document.getElementById('versesContainer').innerHTML = `<div style="text-align:center;padding:30px;color:#ff4444;">❌ Error loading</div>`;
+      document.getElementById('versesContainer').innerHTML = `<div style="text-align:center;padding:30px;color:#ff4444;">❌ Could not load ${currentBook.name} ${currentChapter}. Check the internet connection.</div>`;
+      return false;
     }
   }
 
@@ -3124,7 +3129,7 @@
     if (!book) return false;
     selectBook(book);
     currentChapter = parsed.chapter;
-    await loadChapter();
+    if (!(await loadChapter())) return 'load-failed';
     if (parsed.verse) {
       const idx = allVerses.findIndex(v => v.num === parsed.verse);
       if (idx !== -1) {
@@ -3143,11 +3148,12 @@
   async function navigateToRef(refStr) {
     const m = refStr.match(/^(.+?)\s+(\d+):(\d+)/) || refStr.match(/^(.+?)\s+(\d+)/);
     if (!m) return false;
-    return navigateToParsed({
+    const ok = await navigateToParsed({
       book: m[1].trim(),
       chapter: parseInt(m[2]),
       verse: m[3] ? parseInt(m[3]) : null
     });
+    return ok === 'load-failed' ? false : ok;
   }
 
   function setSearchFeedback(html, color) {
@@ -3199,6 +3205,10 @@
     const parsed = parseBibleRef(raw);
     if (parsed) {
       const ok = await navigateToParsed(parsed);
+      if (ok === 'load-failed') {
+        setSearchFeedback(`✗ Could not load <strong>${parsed.book} ${parsed.chapter}</strong>. Check the internet connection.`, '#ef4444');
+        return;
+      }
       if (ok) {
         const label = parsed.verse ? `${parsed.book} ${parsed.chapter}:${parsed.verse}` : `${parsed.book} ${parsed.chapter}`;
         setSearchFeedback(`✓ Navigated to <strong>${label}</strong>`, '#10b981');

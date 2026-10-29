@@ -9,6 +9,8 @@ export async function middleware(request: NextRequest) {
   if (
     request.nextUrl.pathname.startsWith('/api/stripe/') ||
     request.nextUrl.pathname.startsWith('/api/ai/') ||
+    request.nextUrl.pathname.startsWith('/api/remote/') ||
+    request.nextUrl.pathname === '/remote.html' ||
     request.nextUrl.pathname.startsWith('/billing/')
   ) {
     return NextResponse.next()
