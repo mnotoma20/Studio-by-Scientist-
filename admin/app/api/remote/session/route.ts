@@ -5,6 +5,7 @@ import { authStudioChurch } from '@/lib/remote'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store' // Next 14 otherwise caches Supabase's fetches and serves stale state
 
 // The desktop app starts a remote session; the returned id is the secret in the phone's QR link.
 export async function POST(request: NextRequest) {

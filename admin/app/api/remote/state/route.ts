@@ -3,6 +3,7 @@ import { loadSession } from '@/lib/remote'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store' // Next 14 otherwise caches Supabase's fetches and serves stale state
 
 // Phone page polls this. The session id in the QR link is the credential (96 random bits).
 export async function GET(request: NextRequest) {

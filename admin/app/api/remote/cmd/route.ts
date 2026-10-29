@@ -4,6 +4,7 @@ import { loadSession, REMOTE_CMDS } from '@/lib/remote'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store' // Next 14 otherwise caches Supabase's fetches and serves stale state
 
 // Phone page sends a button press. Queued for the desktop app, then we wait briefly for its answer so
 // the phone can show "could not find that verse" etc.

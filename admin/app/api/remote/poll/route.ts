@@ -4,6 +4,7 @@ import { authStudioChurch, loadSession } from '@/lib/remote'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store' // Next 14 otherwise caches Supabase's fetches and serves stale state
 
 // Called by the desktop app about once a second: publishes what is on screen, reports the results of
 // commands it ran, and receives any commands the phone queued.

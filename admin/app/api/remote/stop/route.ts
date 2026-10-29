@@ -4,6 +4,7 @@ import { authStudioChurch } from '@/lib/remote'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+export const fetchCache = 'force-no-store' // Next 14 otherwise caches Supabase's fetches and serves stale state
 
 export async function POST(request: NextRequest) {
   const auth = await authStudioChurch(request)
