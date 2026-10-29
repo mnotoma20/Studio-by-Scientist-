@@ -2403,7 +2403,7 @@
         <img id="remoteQr" alt="QR code" style="width:180px;height:180px;border-radius:10px;background:#fff;padding:6px;">
         <div style="flex:1;min-width:200px;color:#d1d5db;font-size:13px;line-height:1.6;">
           <b>1.</b> Open your phone camera<br><b>2.</b> Point it at this code<br><b>3.</b> Tap the link that appears
-          <div id="remoteUrl" style="color:#6b7280;font-size:11px;margin-top:10px;word-break:break-all;"></div>
+          <div style="color:#6b7280;font-size:12px;margin-top:10px;">Phone and computer must be on the same Wi-Fi.</div>
         </div>
       </div>
     </div>
@@ -3656,7 +3656,6 @@ async function toggleRemote() {
     return;
   }
   document.getElementById('remoteQr').src = r.qr;
-  document.getElementById('remoteUrl').textContent = r.url.replace(/\?t=.*/, '');
   box.dataset.on = '1'; box.style.display = 'flex';
   btn.textContent = 'Turn off phone remote';
 }
