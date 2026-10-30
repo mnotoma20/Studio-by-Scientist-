@@ -1678,6 +1678,7 @@ const TRANSLATION_ALIASES = {
   webbe: 'webbe', 'world english bible british edition': 'webbe', 'british world english bible': 'webbe',
   ylt: 'ylt', "young's literal": 'ylt', 'youngs literal': 'ylt',
   darby: 'darby',
+  bsb: 'bsb', 'berean standard': 'bsb', berean: 'bsb',
   bbe: 'bbe', 'basic english': 'bbe', 'bible in basic english': 'bbe',
   'oeb-us': 'oeb-us', 'open english bible': 'oeb-us', 'open english bible us': 'oeb-us',
   'oeb-cw': 'oeb-cw', 'open english bible commonwealth': 'oeb-cw',
@@ -1831,21 +1832,21 @@ async function fetchNltPassage(query) {
 // to know or care which translation is active.
 const localBible = require('./localBible');
 
-// KJV never needs the internet (the text ships in the app). Any other translation tries its online
-// source first and, if that fails (no Wi-Fi, bad key), falls back to the local KJV and says so via
+// KJV, ASV, BSB, Darby and YLT never need the internet (the text ships in the app). Any other
+// translation tries its online source first and, if that fails (no Wi-Fi, bad key), falls back to the local KJV and says so via
 // `fallbackTranslation`, so the operator still gets scripture on screen instead of an error.
 async function fetchVerseInTranslation(reference, translation) {
   const trans = (translation || 'kjv').toLowerCase();
-  if (trans === 'kjv') {
-    const local = localBible.lookup(reference);
+  if (localBible.has(trans)) {
+    const local = localBible.lookup(reference, trans);
     if (local) return local;
   }
   try {
     return await fetchVerseOnline(reference, trans);
   } catch (err) {
-    const local = localBible.lookup(reference);
+    const local = localBible.lookup(reference, 'kjv');
     if (!local) throw err;
-    return trans === 'kjv' ? local : { ...local, fallbackTranslation: 'KJV' };
+    return { ...local, fallbackTranslation: 'KJV' };
   }
 }
 
@@ -1873,8 +1874,11 @@ async function fetchVerseOnline(reference, translation) {
 // same "Book Chapter" query bible-api.com itself uses -- each converts to its
 // own API's actual ref format (NLT is dot-separated) internally.
 ipcMain.handle('fetch-bible-chapter', async (event, { book, chapter, translation }) => {
-  const local = localBible.getChapter(book, chapter);
-  if (translation === 'kjv' && local) return { success: true, verses: local };
+  if (localBible.has(translation)) {
+    const own = localBible.getChapter(book, chapter, translation);
+    if (own) return { success: true, verses: own };
+  }
+  const local = localBible.getChapter(book, chapter, 'kjv');   // offline fallback for everything else
   try {
     if (translation === 'esv' || translation === 'nlt') {
       const fetchPassage = translation === 'esv' ? fetchEsvPassage : fetchNltPassage;
@@ -1900,8 +1904,11 @@ ipcMain.handle('fetch-bible-chapter', async (event, { book, chapter, translation
 // single-query response shape ({reference, text, verses}) so those callers'
 // existing data.text / data.verses[0] handling keeps working unchanged.
 ipcMain.handle('fetch-bible-passage', async (event, { query, translation }) => {
-  const local = localBible.lookup(query);
-  if (translation === 'kjv' && local) return { success: true, ...local };
+  if (localBible.has(translation)) {
+    const own = localBible.lookup(query, translation);
+    if (own) return { success: true, ...own };
+  }
+  const local = localBible.lookup(query, 'kjv');   // offline fallback for everything else
   try {
     if (translation === 'esv' || translation === 'nlt') {
       const fetchPassage = translation === 'esv' ? fetchEsvPassage : fetchNltPassage;

@@ -1,0 +1,11 @@
+Bundled public-domain Bible texts (work with no internet). KJV is ../kjv.json.
+
+asv    American Standard Version (1901)             public domain
+bsb    Berean Standard Bible                        dedicated to the public domain 30 April 2023 (berean.bible/terms.htm)
+darby  Darby Bible Translation (1890)               public domain
+ylt    Young's Literal Translation (1898)           public domain
+
+Text taken from github.com/scrollmapper/bible_databases (formats/json), converted to
+[[bookName, [[verse text, ...] per chapter]], ...] and gzipped. Book names normalised to the KJV
+names; spacing glitches in the source (e.g. "ForGod" in Darby) repaired. Every file has the same
+31,102 verses / chapter structure as the KJV.
