@@ -73,6 +73,33 @@ function setSessionPersistence(enabled) {
   }
 }
 
+// ---- Offline start ---------------------------------------------------------------------
+// supabase.auth.getUser() validates the saved login against the server, so with no internet the
+// app used to land on the sign-in screen (which also needs internet) and the operator was locked
+// out of their own service. We keep the last known user + church next to the remembered session
+// and use it only when the failure is a network failure. Written only while "Remember me" is on
+// and wiped with the session on sign-out (setSessionPersistence(false) clears the whole store).
+const PROFILE_KEY = 'offline-profile';
+
+function saveOfflineProfile(user, church) {
+  if (!persistEnabled || !user) return;
+  const slim = { id: user.id, email: user.email, user_metadata: user.user_metadata || {} };
+  sessionDisk.set(PROFILE_KEY, encryptForDisk(JSON.stringify({ user: slim, church })));
+}
+
+function loadOfflineProfile() {
+  try {
+    const raw = decryptFromDisk(sessionDisk.get(PROFILE_KEY));
+    return raw ? JSON.parse(raw) : null;
+  } catch { return null; }
+}
+
+function isNetworkError(error) {
+  if (!error) return false;
+  return error.name === 'AuthRetryableFetchError'
+    || /fetch failed|network|ENOTFOUND|ECONN|ETIMEDOUT|timed? ?out|offline/i.test(error.message || '');
+}
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     storage: authStorageAdapter,
@@ -269,15 +296,24 @@ const auth = {
 
       if (!user) return { success: false, user: null };
 
-      const { data: church } = await supabase
+      const { data: church, error: churchError } = await supabase
         .from('churches')
         .select('*')
         .eq('user_id', user.id)
         .maybeSingle();
+      if (churchError && isNetworkError(churchError)) throw churchError;
 
+      saveOfflineProfile(user, church);
       return { success: true, user, church };
     } catch (error) {
       console.error('Get user error:', error);
+      if (isNetworkError(error)) {
+        const cached = loadOfflineProfile();
+        if (cached) {
+          console.log('Offline: continuing with the saved login for', cached.user.email);
+          return { success: true, user: cached.user, church: cached.church, offline: true };
+        }
+      }
       return { success: false, error: error.message };
     }
   },
