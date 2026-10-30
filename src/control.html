@@ -2764,12 +2764,19 @@
       allVerses = data.verses.map(v => ({
         ref: `${v.book_name} ${v.chapter}:${v.verse}`,
         text: v.text,
-        trans: trans.toUpperCase(),
+        trans: (data.fallback || trans).toUpperCase(),
         num: v.verse
       }));
-      _chapterCache[cacheKey] = allVerses;
+      // A fallback (no internet) must not be cached under the requested translation
+      if (!data.fallback) _chapterCache[cacheKey] = allVerses;
 
       renderVerses();
+      if (data.fallback) {
+        const note = document.createElement('div');
+        note.style.cssText = 'text-align:center;padding:8px;font-size:12px;color:#fbbf24;';
+        note.textContent = `No internet: showing the ${data.fallback} instead of ${trans.toUpperCase()}.`;
+        document.getElementById('versesContainer').prepend(note);
+      }
       console.log(`✅ Loaded ${currentBook.name} ${currentChapter} (${allVerses.length} verses)`);
       return true;
 
@@ -7574,7 +7581,7 @@ function markAsDetected(reference) {
 // ---- DISPLAY & STATE ----
 async function displayVerseAndUpdateState(verse) {
   const trans = liveTranslation();
-  ipcRenderer.send('display-verse', { reference: verse.reference, text: verse.text, translation: TRANSLATION_LABELS[trans] || trans.toUpperCase() });
+  ipcRenderer.send('display-verse', { reference: verse.reference, text: verse.text, translation: verse.fallbackTranslation || TRANSLATION_LABELS[trans] || trans.toUpperCase() });
   const parsed = await ipcRenderer.invoke('parse-verse-reference', verse.reference);
   if (parsed.success) {
     currentDisplayState = {

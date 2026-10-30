@@ -1829,7 +1829,27 @@ async function fetchNltPassage(query) {
 // shape regardless of which backend actually served it (free bible-api.com translation vs.
 // licensed ESV/NLT), so callers (display, auto-advance, the chapter-context panel) don't need
 // to know or care which translation is active.
+const localBible = require('./localBible');
+
+// KJV never needs the internet (the text ships in the app). Any other translation tries its online
+// source first and, if that fails (no Wi-Fi, bad key), falls back to the local KJV and says so via
+// `fallbackTranslation`, so the operator still gets scripture on screen instead of an error.
 async function fetchVerseInTranslation(reference, translation) {
+  const trans = (translation || 'kjv').toLowerCase();
+  if (trans === 'kjv') {
+    const local = localBible.lookup(reference);
+    if (local) return local;
+  }
+  try {
+    return await fetchVerseOnline(reference, trans);
+  } catch (err) {
+    const local = localBible.lookup(reference);
+    if (!local) throw err;
+    return trans === 'kjv' ? local : { ...local, fallbackTranslation: 'KJV' };
+  }
+}
+
+async function fetchVerseOnline(reference, translation) {
   const trans = (translation || 'kjv').toLowerCase();
   if (trans === 'esv' || trans === 'nlt') {
     const fetchPassage = trans === 'esv' ? fetchEsvPassage : fetchNltPassage;
@@ -1853,6 +1873,8 @@ async function fetchVerseInTranslation(reference, translation) {
 // same "Book Chapter" query bible-api.com itself uses -- each converts to its
 // own API's actual ref format (NLT is dot-separated) internally.
 ipcMain.handle('fetch-bible-chapter', async (event, { book, chapter, translation }) => {
+  const local = localBible.getChapter(book, chapter);
+  if (translation === 'kjv' && local) return { success: true, verses: local };
   try {
     if (translation === 'esv' || translation === 'nlt') {
       const fetchPassage = translation === 'esv' ? fetchEsvPassage : fetchNltPassage;
@@ -1863,9 +1885,11 @@ ipcMain.handle('fetch-bible-chapter', async (event, { book, chapter, translation
     const trans = FREE_BIBLE_TRANSLATIONS.has(translation) ? translation : 'kjv';
     const res = await fetch(`https://bible-api.com/${encodeURIComponent(book)}+${chapter}?translation=${trans}`);
     const data = await res.json();
-    if (!data.verses) return { success: false, error: 'Could not load chapter' };
+    if (!data.verses) throw new Error('Could not load chapter');
     return { success: true, verses: data.verses };
   } catch (error) {
+    // No internet (or the source is down): the bundled KJV keeps the Bible tab usable
+    if (local) return { success: true, verses: local, fallback: 'KJV' };
     return { success: false, error: error.message };
   }
 });
@@ -1876,6 +1900,8 @@ ipcMain.handle('fetch-bible-chapter', async (event, { book, chapter, translation
 // single-query response shape ({reference, text, verses}) so those callers'
 // existing data.text / data.verses[0] handling keeps working unchanged.
 ipcMain.handle('fetch-bible-passage', async (event, { query, translation }) => {
+  const local = localBible.lookup(query);
+  if (translation === 'kjv' && local) return { success: true, ...local };
   try {
     if (translation === 'esv' || translation === 'nlt') {
       const fetchPassage = translation === 'esv' ? fetchEsvPassage : fetchNltPassage;
@@ -1891,6 +1917,7 @@ ipcMain.handle('fetch-bible-passage', async (event, { query, translation }) => {
     if (!data.text && !data.verses) return { success: false, error: 'Not found' };
     return { success: true, reference: data.reference, text: data.text, verses: data.verses };
   } catch (error) {
+    if (local) return { success: true, ...local, fallback: 'KJV' };   // offline: bundled KJV
     return { success: false, error: error.message };
   }
 });
