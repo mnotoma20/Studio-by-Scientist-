@@ -1087,6 +1087,9 @@
     <div class="menu-item" data-tab="screens">
       <i data-lucide="monitor"></i> Screens
     </div>
+    <div class="menu-item" data-tab="videos">
+      <i data-lucide="clapperboard"></i> Videos
+    </div>
   </div>
 
   <div style="padding: 8px 16px 4px; font-size: 10px; font-weight: 700; color: #ec4899; letter-spacing: 2px; text-transform: uppercase; margin-top: 4px;">
@@ -1407,6 +1410,53 @@
   </div>
 
 <!-- SCREENS CONTENT AREA -->
+<div id="videosContent" style="
+  display: none; position: absolute;
+  top: 70px; left: 220px; right: 0; bottom: 0;
+  background: #0f0f1e; overflow-y: auto; padding: 30px;
+">
+  <div style="max-width: 720px; margin: 0 auto;">
+    <div style="margin-bottom: 24px;">
+      <h2 style="color: #a78bfa; margin: 0 0 6px 0; font-size: 24px; display: flex; align-items: center; gap: 10px;">
+        <i data-lucide="clapperboard" style="width: 24px; height: 24px;"></i> Videos
+      </h2>
+      <p style="color: #6b7280; font-size: 13px; margin: 0;">Play a video file on the projector: announcements, testimonies, countdowns. Works with no internet. MP4 (H.264) is the safest format.</p>
+    </div>
+
+    <div id="videoNowPlaying" style="display:none; background: rgba(26,26,46,0.9); border: 1px solid rgba(236,72,153,0.4); border-radius: 12px; padding: 16px; margin-bottom: 20px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px;">
+        <div style="min-width:0;">
+          <div style="color:#ec4899; font-size:11px; font-weight:700; letter-spacing:1px; text-transform:uppercase;">On screen now</div>
+          <div id="videoNowName" style="color:#fff; font-weight:700; font-size:16px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></div>
+        </div>
+        <button class="btn btn-secondary" onclick="stopVideoOnScreen()">⏹ Stop</button>
+      </div>
+      <input id="videoSeek" type="range" min="0" max="1000" value="0" style="width:100%;"
+        oninput="videoSeeking = true; onVideoSeekInput(this.value)" onchange="videoSeeking = false;">
+      <div style="display:flex; justify-content:space-between; color:#9ca3af; font-size:12px; margin:4px 0 12px 0;">
+        <span id="videoTimeNow">0:00</span><span id="videoTimeTotal">0:00</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <button id="videoToggleBtn" class="btn btn-primary" onclick="ipcRenderer.send('video-control', { action: 'toggle' })">⏸ Pause</button>
+        <button class="btn btn-secondary" onclick="ipcRenderer.send('video-control', { action: 'restart' })">↺ Restart</button>
+        <span style="color:#9ca3af; font-size:12px; margin-left:8px;">🔊</span>
+        <input id="videoVolume" type="range" min="0" max="100" value="100" style="width:110px;"
+          oninput="ipcRenderer.send('video-control', { action: 'volume', value: this.value / 100 })">
+        <label style="color:#9ca3af; font-size:12px; display:flex; align-items:center; gap:6px; margin-left:auto;">
+          <input id="videoLoop" type="checkbox" onchange="ipcRenderer.send('video-control', { action: 'loop', value: this.checked })"> Loop
+        </label>
+      </div>
+      <div id="videoError" style="display:none; color:#fca5a5; font-size:12px; margin-top:10px;"></div>
+    </div>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+      <div style="color:#d1d5db; font-weight:700;">Your videos</div>
+      <button class="btn btn-primary" onclick="addVideos()">+ Add videos</button>
+    </div>
+    <div id="videoList"></div>
+  </div>
+</div>
+
 <div id="screensContent" style="
   display: none; position: absolute;
   top: 70px; left: 220px; right: 0; bottom: 0;
@@ -3268,7 +3318,7 @@ document.querySelectorAll('.menu-item').forEach((item, index) => {
 
     // Hide everything
     document.querySelectorAll('.content-area').forEach(c => c.style.display = 'none');
-    ['songsContent', 'slidesContent', 'themesContent', 'scheduleContent', 'backgroundsContent', 'sermonNotesContent', 'settingsContent', 'screensContent'].forEach(id => {
+    ['songsContent', 'slidesContent', 'themesContent', 'scheduleContent', 'backgroundsContent', 'sermonNotesContent', 'settingsContent', 'screensContent', 'videosContent'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.display = 'none';
     });
@@ -3308,7 +3358,10 @@ document.querySelectorAll('.menu-item').forEach((item, index) => {
       // Screens
       document.getElementById('screensContent').style.display = 'block';
       loadScreensTab();
-    } else if (index === 9) {
+    } else if (item.dataset.tab === 'videos') {
+      document.getElementById('videosContent').style.display = 'block';
+      renderVideoList();
+    } else if (item.dataset.tab === 'sermon-notes') {
       // Sermon Notes (AI)
       document.getElementById('sermonNotesContent').style.display = 'block';
       loadSermonNotesTab();
@@ -3571,6 +3624,108 @@ document.addEventListener('keydown', (e) => {
 
 
 // ============================================
+// VIDEOS TAB 🎬 -- local video files played on the projector
+// ============================================
+let videoLibrary = [];
+try { videoLibrary = JSON.parse(localStorage.getItem('videoLibrary') || '[]'); } catch (_) { videoLibrary = []; }
+let videoSeeking = false;
+let videoDuration = 0;
+
+function saveVideoLibrary() {
+  try { localStorage.setItem('videoLibrary', JSON.stringify(videoLibrary)); } catch (_) { /* private mode */ }
+}
+
+function fmtVideoTime(sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  return Math.floor(sec / 60) + ':' + String(sec % 60).padStart(2, '0');
+}
+
+function escHtml(t) { return String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+function renderVideoList() {
+  const list = document.getElementById('videoList');
+  if (!list) return;
+  if (!videoLibrary.length) {
+    list.innerHTML = '<div style="padding:30px;text-align:center;color:#6b7280;border:1px dashed rgba(167,139,250,0.3);border-radius:12px;">No videos yet. Click <b>+ Add videos</b> and choose files from this computer.</div>';
+    return;
+  }
+  list.innerHTML = videoLibrary.map((v, i) => `
+    <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;margin-bottom:8px;background:rgba(26,26,46,0.9);border:1px solid rgba(167,139,250,0.2);border-radius:10px;">
+      <span style="font-size:20px;">🎬</span>
+      <div style="flex:1;min-width:0;">
+        <div style="color:#fff;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(v.name)}</div>
+        <div style="color:#6b7280;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${escHtml(v.path)}</div>
+      </div>
+      <button class="btn btn-primary" onclick="playVideo(${i})">▶ Play on screen</button>
+      <button class="btn btn-secondary" onclick="removeVideo(${i})" title="Remove from this list (the file is not deleted)">✕</button>
+    </div>`).join('');
+}
+
+async function addVideos() {
+  const picked = await ipcRenderer.invoke('pick-videos');
+  for (const v of picked) {
+    if (!videoLibrary.some(x => x.path === v.path)) videoLibrary.push(v);
+  }
+  saveVideoLibrary();
+  renderVideoList();
+}
+
+function removeVideo(i) {
+  videoLibrary.splice(i, 1);
+  saveVideoLibrary();
+  renderVideoList();
+}
+
+async function playVideo(i) {
+  const v = videoLibrary[i];
+  if (!v) return;
+  if (!isPaidPlan()) { showUpgradeModal('Playing videos on the projector requires a Pro or Studio plan.'); return; }
+  const err = document.getElementById('videoError');
+  err.style.display = 'none';
+  const r = await ipcRenderer.invoke('display-video', {
+    path: v.path, name: v.name,
+    loop: document.getElementById('videoLoop').checked,
+    volume: document.getElementById('videoVolume').value / 100,
+  });
+  if (!r.success) {
+    document.getElementById('videoNowPlaying').style.display = 'block';
+    err.textContent = r.error; err.style.display = 'block';
+    document.getElementById('videoNowName').textContent = v.name;
+    return;
+  }
+  document.getElementById('videoNowName').textContent = v.name;
+  document.getElementById('videoNowPlaying').style.display = 'block';
+  document.getElementById('videoToggleBtn').textContent = '⏸ Pause';
+  document.getElementById('videoSeek').value = 0;
+  document.getElementById('videoTimeNow').textContent = '0:00';
+  document.getElementById('videoTimeTotal').textContent = '0:00';
+}
+
+function stopVideoOnScreen() {
+  ipcRenderer.send('clear-screen');
+}
+
+function onVideoSeekInput(value) {
+  if (videoDuration > 0) ipcRenderer.send('video-control', { action: 'seek', value: (value / 1000) * videoDuration });
+}
+
+ipcRenderer.on('video-state', (_e, st) => {
+  const panel = document.getElementById('videoNowPlaying');
+  if (!panel) return;
+  if (st.stopped) { panel.style.display = 'none'; return; }
+  if (st.error) {
+    const err = document.getElementById('videoError');
+    err.textContent = st.error; err.style.display = 'block';
+    return;
+  }
+  videoDuration = st.duration || 0;
+  if (!videoSeeking && videoDuration > 0) document.getElementById('videoSeek').value = Math.round((st.time / videoDuration) * 1000);
+  document.getElementById('videoTimeNow').textContent = fmtVideoTime(st.time);
+  document.getElementById('videoTimeTotal').textContent = fmtVideoTime(videoDuration);
+  document.getElementById('videoToggleBtn').textContent = st.playing ? '⏸ Pause' : (st.ended ? '▶ Play again' : '▶ Play');
+});
+
+// ============================================
 // PHONE REMOTE 📱 -- commands arrive from main.js (phone page on the church Wi-Fi)
 // ============================================
 // Live Mode status for the phone remote (plain text version of the Following line)
@@ -3605,6 +3760,8 @@ async function runRemoteCommand({ cmd, ref }) {
     pushRemoteLive();
     return { success: want === isListening, error: want && !isListening ? 'Could not start listening. Check the microphone on the computer.' : undefined };
   }
+  if (cmd === 'video-toggle') { ipcRenderer.send('video-control', { action: 'toggle' }); return { success: true }; }
+  if (cmd === 'video-restart') { ipcRenderer.send('video-control', { action: 'restart' }); return { success: true }; }
   if (cmd === 'blank') { ipcRenderer.send('clear-screen'); return { success: true }; }
   if (cmd === 'logo') {
     if (logoBackground && logoBackground.image_url) ipcRenderer.send('display-background', logoBackground.image_url);

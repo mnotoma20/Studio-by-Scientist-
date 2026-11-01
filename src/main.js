@@ -762,6 +762,7 @@ function trackEvent(event, data = {}) {
 // What is on screen right now, for the phone remote's "On screen now" box
 let remoteShown = null;
 let remoteLive = { listening: false, following: '', recent: [] };
+let remoteVideo = null;   // { name, playing, time, duration } while a video is on screen
 ipcMain.on('remote-live', (_e, live) => { remoteLive = live || remoteLive; });
 
 ipcMain.on('display-verse', (event, verseData) => {
@@ -782,6 +783,7 @@ ipcMain.on('set-box-layout', (_event, layout) => {
 ipcMain.on('clear-screen', () => {
   console.log('🧹 Clear display');
   remoteShown = null;
+  if (remoteVideo) { remoteVideo = null; if (controlWindow && !controlWindow.isDestroyed()) controlWindow.webContents.send('video-state', { stopped: true }); }
   broadcastToDisplays('clear-display', null);
 });
 
@@ -1431,6 +1433,59 @@ ipcMain.handle('reorder-schedule-items', async (event, items) => {
 // AI HANDLERS
 // ============================================
 
+// ============================================
+// VIDEO PLAYBACK (local files on the projector)
+// ============================================
+// One screen plays with sound (the first "clean" congregation screen, else the first screen); every
+// other screen plays the same file muted so mirrored/overflow rooms don't echo. That screen also
+// reports playback position back, which the operator window and the phone remote display.
+function videoSoundWindow() {
+  const live = displayWindows.filter(({ window: w }) => w && !w.isDestroyed());
+  const pick = live.find(({ config }) => config.content_profile === 'clean') || live[0];
+  return pick ? pick.window : null;
+}
+
+ipcMain.handle('pick-videos', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(controlWindow, {
+    title: 'Choose videos',
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'Videos', extensions: ['mp4', 'm4v', 'mov', 'webm'] }],
+  });
+  if (canceled) return [];
+  return filePaths.map((p) => ({ path: p, name: path.basename(p).replace(/\.[^.]+$/, '') }));
+});
+
+ipcMain.handle('display-video', (_event, { path: filePath, name, loop, volume }) => {
+  if (displayWindows.length === 0) return { success: false, error: 'No display screens configured and enabled. Press Go Live first.' };
+  if (!filePath || !fs.existsSync(filePath)) return { success: false, error: 'That video file was not found. It may have been moved or deleted.' };
+  const sound = videoSoundWindow();
+  const url = require('url').pathToFileURL(filePath).href;
+  for (const { window: win } of displayWindows) {
+    if (!win || win.isDestroyed()) continue;
+    win.webContents.send('show-video', { url, loop: !!loop, volume: typeof volume === 'number' ? volume : 1, muted: win !== sound, reporter: win === sound });
+  }
+  remoteVideo = { name: name || 'Video', playing: true, time: 0, duration: 0 };
+  remoteShown = { ref: '\uD83C\uDFAC ' + remoteVideo.name, text: 'Video' };
+  broadcastToDisplays('item-went-live', { startedAt: Date.now() }, 'confidence');
+  trackEvent('video_displayed', {});
+  return { success: true };
+});
+
+// Operator/phone controls. Volume and mute only ever apply to the screen with sound.
+ipcMain.on('video-control', (_event, c) => {
+  const sound = videoSoundWindow();
+  for (const { window: win } of displayWindows) {
+    if (!win || win.isDestroyed()) continue;
+    if ((c.action === 'volume' || c.action === 'mute') && win !== sound) continue;
+    win.webContents.send('video-control', { ...c, audible: win === sound });
+  }
+});
+
+ipcMain.on('video-state', (_event, state) => {
+  if (remoteVideo && !state.error) remoteVideo = { ...remoteVideo, playing: !!state.playing && !state.ended, time: state.time, duration: state.duration };
+  if (controlWindow && !controlWindow.isDestroyed()) controlWindow.webContents.send('video-state', state);
+});
+
 // ---- Phone Remote (Studio plan): phone page on the church Wi-Fi sends commands to the control window ----
 const remoteRelay = require('./remoteRelay');
 let remoteReqId = 0;
@@ -1457,7 +1512,7 @@ ipcMain.handle('remote-start', async () => {
       post: adminPost,
       baseUrl: adminBaseUrl(),
       onCommand: remoteCommand,
-      getState: () => ({ ...(remoteShown || {}), live: remoteLive }),
+      getState: () => ({ ...(remoteShown || {}), live: remoteLive, video: remoteVideo }),
     });
     return { success: true, ...info };
   } catch (e) {

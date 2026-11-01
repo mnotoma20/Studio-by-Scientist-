@@ -49,6 +49,14 @@
     <button onclick="send('blank')">⬛ Blank</button>
     <button onclick="send('logo')">🖼 Logo</button>
   </div>
+  <div class="live" id="videoBox" style="display:none">
+    <small>Video on screen</small>
+    <div class="follow" id="videoName"></div>
+    <div class="row">
+      <button id="videoToggle" onclick="send('video-toggle')">⏯ Play / Pause</button>
+      <button onclick="send('video-restart')">↺ Restart</button>
+    </div>
+  </div>
   <form class="verse" onsubmit="event.preventDefault(); sendVerse();">
     <input id="ref-in" placeholder="John 3:16" autocapitalize="words" autocomplete="off" enterkeyhint="go">
     <button type="submit">Show</button>
@@ -104,6 +112,11 @@
       if (!s.online) $('boot').textContent = 'Studio is not connected. Is it open and online?';
       $('ref').textContent = s.ref || 'Nothing';
       $('txt').textContent = s.text || '';
+      $('videoBox').style.display = s.video ? 'flex' : 'none';
+      if (s.video) {
+        const t = (n) => Math.floor(n / 60) + ':' + String(Math.floor(n % 60)).padStart(2, '0');
+        $('videoName').textContent = s.video.name + ' · ' + (s.video.playing ? 'playing' : 'paused') + (s.video.duration ? ' · ' + t(s.video.time) + ' / ' + t(s.video.duration) : '');
+      }
       const l = s.live || {};
       listening = !!l.listening;
       $('listenBtn').className = 'listen' + (listening ? ' on' : '');

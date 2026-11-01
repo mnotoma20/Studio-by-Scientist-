@@ -314,6 +314,11 @@
     <img id="bgImageEl" src="" style="width:100%; height:100%; display:block; object-fit:fill;" />
   </div>
 
+  <!-- Video overlay — plays a local video file edge to edge (letterboxed), controlled from the operator window -->
+  <div id="videoOverlay" style="display:none; position:fixed; inset:0; z-index:3; background:#000;">
+    <video id="videoEl" playsinline style="width:100%; height:100%; display:block; object-fit:contain; background:#000;"></video>
+  </div>
+
   <!-- PPTX slide overlay — sits above everything, avoids clobbering verse/welcome DOM -->
   <div id="pptxOverlay" style="display:none; position:fixed; inset:0; z-index:5; overflow:hidden;"></div>
   <div id="slideDeckOverlay" style="display:none; position:fixed; inset:0; z-index:5; overflow:hidden;"></div>
@@ -713,6 +718,65 @@ ipcRenderer.on('show-background', (event, imageUrl) => {
   if (existingOverlay) existingOverlay.remove();
 });
 
+// ---- VIDEO PLAYBACK ----------------------------------------------------------------------
+// One screen is the "reporter": it plays with sound and sends the playback position back so the
+// operator window can show a progress bar. Other screens play the same file muted.
+const videoOverlay = document.getElementById('videoOverlay');
+const videoEl = document.getElementById('videoEl');
+let videoReportTimer = null;
+
+function videoSnapshot(extra) {
+  return Object.assign({
+    playing: !videoEl.paused && !videoEl.ended,
+    time: videoEl.currentTime || 0,
+    duration: isFinite(videoEl.duration) ? videoEl.duration : 0,
+    ended: videoEl.ended,
+    muted: videoEl.muted,
+    volume: videoEl.volume,
+  }, extra || {});
+}
+
+function stopVideo() {
+  clearInterval(videoReportTimer);
+  videoReportTimer = null;
+  if (!videoEl.getAttribute('src')) return;
+  try { videoEl.pause(); } catch (_) {}
+  videoEl.removeAttribute('src');
+  videoEl.load();
+  videoOverlay.style.display = 'none';
+}
+
+videoEl.addEventListener('ended', () => { if (videoReportTimer) ipcRenderer.send('video-state', videoSnapshot()); });
+videoEl.addEventListener('error', () => { if (videoEl.getAttribute('src')) ipcRenderer.send('video-state', videoSnapshot({ error: 'This video could not be played. Try an MP4 (H.264) file.' })); });
+
+ipcRenderer.on('show-video', (_event, d) => {
+  hideAllOtherOverlays();
+  welcomeScreen.style.display = 'none';
+  verseScreen.classList.remove('active');
+  const existingOverlay = document.getElementById('themeOverlay');
+  if (existingOverlay) existingOverlay.remove();
+  videoEl.muted = !!d.muted;
+  videoEl.volume = typeof d.volume === 'number' ? d.volume : 1;
+  videoEl.loop = !!d.loop;
+  videoEl.src = d.url;
+  videoOverlay.style.display = 'block';
+  videoEl.play().catch((err) => { if (d.reporter) ipcRenderer.send('video-state', videoSnapshot({ error: 'Could not start the video: ' + err.message })); });
+  if (d.reporter) videoReportTimer = setInterval(() => ipcRenderer.send('video-state', videoSnapshot()), 400);
+});
+
+ipcRenderer.on('video-control', (_event, c) => {
+  if (!videoEl.getAttribute('src')) return;
+  if (c.action === 'play') videoEl.play().catch(() => {});
+  else if (c.action === 'pause') videoEl.pause();
+  else if (c.action === 'toggle') { if (videoEl.paused || videoEl.ended) videoEl.play().catch(() => {}); else videoEl.pause(); }
+  else if (c.action === 'restart') { videoEl.currentTime = 0; videoEl.play().catch(() => {}); }
+  else if (c.action === 'seek') videoEl.currentTime = Math.max(0, Number(c.value) || 0);
+  else if (c.action === 'volume') videoEl.volume = Math.min(1, Math.max(0, Number(c.value)));
+  else if (c.action === 'mute' && c.audible) videoEl.muted = !!c.value;   // only the sound screen is ever unmuted
+  else if (c.action === 'loop') videoEl.loop = !!c.value;
+  if (videoReportTimer) ipcRenderer.send('video-state', videoSnapshot());
+});
+
 // HELPER FUNCTION TO APPLY COLORS
 function applyThemeColors(themeData) {
   // Verse / lyrics screen
@@ -888,6 +952,7 @@ function applyThemeColors(themeData) {
   if (deckOv) { deckOv.style.display = 'none'; deckOv.innerHTML = ''; deckOv.style.animation = 'none'; }
   const bgOv = document.getElementById('bgImageOverlay');
   if (bgOv) { bgOv.style.display = 'none'; document.getElementById('bgImageEl').src = ''; }
+  stopVideo();
 
   document.body.style.background = '';
   document.body.style.backgroundImage = '';
@@ -932,6 +997,7 @@ function applyThemeColors(themeData) {
     if (deckOv) { deckOv.style.display = 'none'; deckOv.innerHTML = ''; deckOv.style.animation = 'none'; }
     const bgOv = document.getElementById('bgImageOverlay');
     if (bgOv) { bgOv.style.display = 'none'; document.getElementById('bgImageEl').src = ''; }
+    stopVideo();
   }
 
   // Lower Third handlers

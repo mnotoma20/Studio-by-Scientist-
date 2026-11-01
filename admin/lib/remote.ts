@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase'
 import { authChurch } from '@/lib/churchAuth'
 
-export const REMOTE_CMDS = ['next', 'prev', 'blank', 'logo', 'verse', 'listen-start', 'listen-stop']
+export const REMOTE_CMDS = ['next', 'prev', 'blank', 'logo', 'verse', 'listen-start', 'listen-stop', 'video-toggle', 'video-restart']
 export const SESSION_TTL_MS = 12 * 60 * 60 * 1000
 
 // Phone Remote is a Studio feature: Studio plan or the owner override. authChurch's `entitled` is
