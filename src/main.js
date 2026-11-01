@@ -1440,8 +1440,9 @@ ipcMain.handle('reorder-schedule-items', async (event, items) => {
 // other screen plays the same file muted so mirrored/overflow rooms don't echo. That screen also
 // reports playback position back, which the operator window and the phone remote display.
 function videoSoundWindow() {
-  const live = displayWindows.filter(({ window: w }) => w && !w.isDestroyed());
-  const pick = live.find(({ config }) => config.content_profile === 'clean') || live[0];
+  // Stage/confidence screens use stage.html, which cannot play video, so they never get the sound
+  const live = displayWindows.filter(({ window: w, config }) => w && !w.isDestroyed() && config.content_profile !== 'confidence');
+  const pick = live.find(({ config }) => config.content_profile === 'clean' && !config.ndi_enabled) || live.find(({ config }) => config.content_profile === 'clean') || live[0];
   return pick ? pick.window : null;
 }
 
