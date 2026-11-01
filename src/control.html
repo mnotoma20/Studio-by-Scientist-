@@ -1431,6 +1431,7 @@
         </div>
         <button class="btn btn-secondary" onclick="stopVideoOnScreen()">⏹ Stop</button>
       </div>
+      <video id="videoPreview" muted playsinline style="display:block; width:100%; max-height:260px; background:#000; border-radius:8px; margin-bottom:10px;"></video>
       <input id="videoSeek" type="range" min="0" max="1000" value="0" style="width:100%;"
         oninput="videoSeeking = true; onVideoSeekInput(this.value)" onchange="videoSeeking = false;">
       <div style="display:flex; justify-content:space-between; color:#9ca3af; font-size:12px; margin:4px 0 12px 0;">
@@ -3695,6 +3696,9 @@ async function playVideo(i) {
   }
   document.getElementById('videoNowName').textContent = v.name;
   document.getElementById('videoNowPlaying').style.display = 'block';
+  const pv = document.getElementById('videoPreview');
+  pv.src = 'file://' + encodeURI(v.path.replace(/\\/g, '/').replace(/^([A-Za-z]):/, '/$1:')).replace(/#/g, '%23').replace(/\?/g, '%3F');
+  pv.muted = true;
   document.getElementById('videoToggleBtn').textContent = '⏸ Pause';
   document.getElementById('videoSeek').value = 0;
   document.getElementById('videoTimeNow').textContent = '0:00';
@@ -3712,7 +3716,8 @@ function onVideoSeekInput(value) {
 ipcRenderer.on('video-state', (_e, st) => {
   const panel = document.getElementById('videoNowPlaying');
   if (!panel) return;
-  if (st.stopped) { panel.style.display = 'none'; return; }
+  const pv = document.getElementById('videoPreview');
+  if (st.stopped) { panel.style.display = 'none'; pv.pause(); pv.removeAttribute('src'); pv.load(); return; }
   if (st.error) {
     const err = document.getElementById('videoError');
     err.textContent = st.error; err.style.display = 'block';
@@ -3722,6 +3727,12 @@ ipcRenderer.on('video-state', (_e, st) => {
   if (!videoSeeking && videoDuration > 0) document.getElementById('videoSeek').value = Math.round((st.time / videoDuration) * 1000);
   document.getElementById('videoTimeNow').textContent = fmtVideoTime(st.time);
   document.getElementById('videoTimeTotal').textContent = fmtVideoTime(videoDuration);
+  // Keep the operator's silent preview in step with the projector
+  if (pv.src) {
+    if (Math.abs(pv.currentTime - st.time) > 0.6) { try { pv.currentTime = st.time; } catch (e) {} }
+    if (st.playing && pv.paused) pv.play().catch(() => {});
+    else if (!st.playing && !pv.paused) pv.pause();
+  }
   document.getElementById('videoToggleBtn').textContent = st.playing ? '⏸ Pause' : (st.ended ? '▶ Play again' : '▶ Play');
 });
 
