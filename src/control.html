@@ -1364,7 +1364,8 @@
         background-size: cover;
         background-position: center;
       "></div>
-      
+      <video id="previewVideo" muted loop playsinline style="display:none; position:absolute; top:0; left:0; width:100%; height:100%; object-fit:cover;"></video>
+
       <!-- Preview overlay -->
       <div id="previewOverlay" style="
         position: absolute;
@@ -4438,8 +4439,15 @@ function renderThemeEditor() {
         onclick="document.getElementById('backgroundUpload').click()" 
         style="width: 100%; padding: 40px; background: rgba(45,45,74,0.6); border: 2px dashed rgba(167,139,250,0.3); border-radius: 8px; color: #a78bfa; font-weight: 600; cursor: pointer; font-size: 14px;"
       >
-        ${uploadedImageUrl ? '✅ Image Uploaded - Click to Change' : '📁 Click to Upload Image'}
+        ${uploadedImageUrl && !isMotionRef(uploadedImageUrl) ? '✅ Image Uploaded - Click to Change' : '📁 Click to Upload Image'}
       </button>
+      <button
+        onclick="chooseMotionBackground()"
+        style="width: 100%; margin-top: 10px; padding: 16px; background: rgba(45,45,74,0.6); border: 2px dashed rgba(236,72,153,0.4); border-radius: 8px; color: #ec4899; font-weight: 600; cursor: pointer; font-size: 14px;"
+      >
+        ${isMotionRef(uploadedImageUrl) ? '✅ Moving video chosen - Click to Change' : '🎬 Or choose a short looping video (moving background)'}
+      </button>
+      <div style="margin-top: 6px; font-size: 11px; color: #6b7280;">Tip: a 10 to 30 second loop, 1080p, MP4 (H.264). It is always silent. The video file stays on this computer.</div>
     </div>
     
     <!-- Text Color -->
@@ -4569,19 +4577,45 @@ function handleBackgroundUpload(event) {
   reader.readAsDataURL(file);
 }
 
+const isMotionRef = (v) => typeof v === 'string' && v.startsWith('motion:');
+
+async function chooseMotionBackground() {
+  const r = await ipcRenderer.invoke('pick-theme-video');
+  if (r.canceled) return;
+  if (!r.success) { alert(r.error || 'Could not use that video.'); return; }
+  uploadedImageUrl = r.ref;
+  currentTheme.background_url = r.ref;
+  updatePreview();
+  renderThemeEditor();
+}
+
 function updatePreview() {
   if (!currentTheme) return;
-  
+
   const background = document.getElementById('previewBackground');
   const overlay = document.getElementById('previewOverlay');
   const title = document.getElementById('previewTitle');
   const text = document.getElementById('previewText');
-  
-  // Update background
-  if (uploadedImageUrl) {
-    background.style.backgroundImage = `url(${uploadedImageUrl})`;
-  } else {
+  const pv = document.getElementById('previewVideo');
+
+  // Update background (a 'motion:' reference plays as a silent loop; anything else is a still image)
+  if (isMotionRef(uploadedImageUrl)) {
     background.style.backgroundImage = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)';
+    const ref = uploadedImageUrl;
+    ipcRenderer.invoke('resolve-theme-motion', ref).then(url => {
+      if (uploadedImageUrl !== ref) return;
+      if (!url) { pv.style.display = 'none'; return; }
+      if (pv.dataset.src !== url) { pv.dataset.src = url; pv.src = url; }
+      pv.style.display = 'block';
+      pv.play().catch(() => {});
+    });
+  } else {
+    pv.pause(); pv.style.display = 'none'; pv.removeAttribute('src'); delete pv.dataset.src;
+    if (uploadedImageUrl) {
+      background.style.backgroundImage = `url(${uploadedImageUrl})`;
+    } else {
+      background.style.backgroundImage = 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)';
+    }
   }
   
   // Update overlay
@@ -4642,11 +4676,17 @@ async function deleteTheme() {
   }
 }
 
-function applyCurrentTheme() {
+async function applyCurrentTheme() {
   if (!currentTheme) return;
 
+  const motionUrl = isMotionRef(uploadedImageUrl) ? await ipcRenderer.invoke('resolve-theme-motion', uploadedImageUrl) : null;
+  if (isMotionRef(uploadedImageUrl) && !motionUrl) {
+    alert('This theme\'s video file is not on this computer. Choose the video again.');
+    return;
+  }
   ipcRenderer.send('apply-theme', {
-    background: uploadedImageUrl,
+    background: isMotionRef(uploadedImageUrl) ? null : uploadedImageUrl,
+    motionUrl,
     textColor: currentTheme.text_color,
     titleColor: currentTheme.title_color,
     boxColor: currentTheme.box_color || '#FFD700',

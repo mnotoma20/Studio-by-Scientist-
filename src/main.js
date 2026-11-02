@@ -1020,6 +1020,41 @@ ipcMain.handle('delete-theme', async (event, themeId) => {
   }
 });
 
+// ─── Motion (video) theme backgrounds ────────────────────────────────────────────────────────
+// Videos are too big for the cloud theme row, so the file is copied into the app's own folder and
+// the theme stores a short reference ('motion:<file>') in background_url. The reference only resolves
+// on the computer that holds the file; elsewhere the theme falls back to a plain dark background.
+const MOTION_DIR = () => path.join(app.getPath('userData'), 'theme-videos');
+const MOTION_MAX_BYTES = 80 * 1024 * 1024;
+
+function motionRefToUrl(ref) {
+  if (typeof ref !== 'string' || !ref.startsWith('motion:')) return null;
+  const file = path.join(MOTION_DIR(), path.basename(ref.slice(7)));
+  return fs.existsSync(file) ? require('url').pathToFileURL(file).href : null;
+}
+
+ipcMain.handle('pick-theme-video', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'Choose a short looping video',
+    properties: ['openFile'],
+    filters: [{ name: 'Video', extensions: ['mp4', 'm4v', 'webm', 'mov'] }]
+  });
+  if (canceled || !filePaths[0]) return { success: false, canceled: true };
+  const src = filePaths[0];
+  const size = fs.statSync(src).size;
+  if (size > MOTION_MAX_BYTES) {
+    return { success: false, error: `That video is ${Math.round(size / 1048576)} MB. Pick one under ${MOTION_MAX_BYTES / 1048576} MB (a 10 to 30 second loop is plenty).` };
+  }
+  fs.mkdirSync(MOTION_DIR(), { recursive: true });
+  const safe = path.basename(src).replace(/[^\w.\-]+/g, '_');
+  const name = `${Date.now()}-${safe}`;
+  fs.copyFileSync(src, path.join(MOTION_DIR(), name));
+  const ref = `motion:${name}`;
+  return { success: true, ref, url: motionRefToUrl(ref) };
+});
+
+ipcMain.handle('resolve-theme-motion', (_event, ref) => motionRefToUrl(ref));
+
 // Apply theme to display window
 ipcMain.on('apply-theme', (event, themeData) => {
   console.log('🎨 Applying theme:', themeData);

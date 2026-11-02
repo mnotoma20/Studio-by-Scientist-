@@ -662,7 +662,24 @@ ipcRenderer.on('apply-theme', (event, themeData) => {
   document.body.style.backgroundSize = 'cover';
   document.body.style.backgroundPosition = 'center';
   document.body.style.backgroundRepeat = 'no-repeat';
-  
+
+  // Motion background: a silent looping video sitting behind everything (z-index 0, text is 10).
+  // Always muted, so it can never take the sound from a real video played from the Videos tab.
+  let motionEl = document.getElementById('themeMotion');
+  if (themeData.motionUrl) {
+    if (!motionEl) {
+      motionEl = document.createElement('video');
+      motionEl.id = 'themeMotion';
+      motionEl.muted = true; motionEl.loop = true; motionEl.autoplay = true; motionEl.playsInline = true;
+      motionEl.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;pointer-events:none;background:#000;';
+      document.body.insertBefore(motionEl, document.body.firstChild);
+    }
+    if (motionEl.dataset.src !== themeData.motionUrl) { motionEl.dataset.src = themeData.motionUrl; motionEl.src = themeData.motionUrl; }
+    motionEl.play().catch(() => {});
+  } else if (motionEl) {
+    motionEl.remove();
+  }
+
   // Apply overlay
   const existingOverlay = document.getElementById('themeOverlay');
   if (existingOverlay) {
