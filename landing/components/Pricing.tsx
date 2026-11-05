@@ -13,6 +13,7 @@ const PLANS = [
     color: '#6b7280',
     features: [
       'Manual Bible search & display',
+      'Offline Bibles: KJV, ASV, BSB, Darby, YLT',
       'Unlimited songs',
       '2 schedules per month',
       'Unlimited themes',
@@ -37,6 +38,7 @@ const PLANS = [
       'AI sermon notes',
       'PowerPoint import',
       'Slide Deck editor',
+      'Play videos on the projector',
       'Multi-screen output (up to 4)',
       'Stage monitor',
       'NDI streaming output',
@@ -54,8 +56,9 @@ const PLANS = [
     color: '#f59e0b',
     features: [
       'Everything in Pro',
+      'Phone Remote: control the screen from your phone',
+      'Service Recap: summary, key points and a ready-to-send message',
       'Premium song library',
-      'Service intelligence reports',
       'Admin dashboard',
       'Custom branding',
       'Dedicated support',
