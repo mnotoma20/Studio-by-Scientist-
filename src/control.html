@@ -1738,7 +1738,7 @@
         <div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.35);border-radius:14px;padding:20px;">
           <div style="color:#f59e0b;font-weight:800;font-size:16px;margin-bottom:2px;">Studio</div>
           <div style="display:flex;align-items:baseline;gap:5px;margin-bottom:14px;">
-            <span id="upgradeStudioPrice" style="color:#fff;font-size:26px;font-weight:900;">$50</span>
+            <span id="upgradeStudioPrice" style="color:#fff;font-size:26px;font-weight:900;">$29</span>
             <span style="color:#6b7280;font-size:12px;">/month</span>
           </div>
           <ul style="list-style:none;padding:0;margin:0 0 16px;display:flex;flex-direction:column;gap:7px;">
@@ -1932,6 +1932,10 @@
         style="padding: 8px 22px; background: transparent; border: none; color: #9ca3af; font-size: 13px; cursor: pointer;">
         ⚡ Live Mode
       </button>
+      <button id="libraryModeTab" onclick="switchSermonMode('library')"
+        style="padding: 8px 22px; background: transparent; border: none; color: #9ca3af; font-size: 13px; cursor: pointer;">
+        📚 Library
+      </button>
     </div>
   </div>
 
@@ -2010,6 +2014,10 @@
               style="width: 100%; padding: 10px; background: rgba(45,45,74,0.6); border: 1px solid rgba(167,139,250,0.2); border-radius: 8px; color: #e5e7eb; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; justify-content: center;">
               <i data-lucide="save" style="width: 15px; height: 15px;"></i> Save Notes
             </button>
+            <button onclick="openSaveSermonModal('notes')"
+              style="width: 100%; padding: 10px; background: rgba(236,72,153,0.15); border: 1px solid rgba(236,72,153,0.4); border-radius: 8px; color: #ec4899; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px;">
+              📚 Save to Library <span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,0.15);color:#f59e0b;">STUDIO</span>
+            </button>
           </div>
         </div>
       </div>
@@ -2026,6 +2034,21 @@
   </div>
 
   <!-- LIVE MODE — Voice Detection -->
+  <!-- LIBRARY MODE (Studio) -->
+  <div id="libraryModeContent" style="display: none; padding: 24px 30px;">
+    <div style="max-width: 980px; margin: 0 auto;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;">
+        <input id="libraryQuery" oninput="_libraryQuery=this.value;renderLibrary()" placeholder="Search title, scripture, series or notes"
+          style="flex:1;min-width:220px;padding:10px 14px;background:#1a1a2e;border:1px solid rgba(167,139,250,0.3);border-radius:8px;color:#fff;font-size:13px;outline:none;">
+        <div style="display:flex;border-radius:8px;overflow:hidden;border:1px solid rgba(236,72,153,0.3);">
+          <button id="libBySeries" onclick="setLibraryGroup('series')" style="padding:9px 16px;border:none;font-size:12px;cursor:pointer;background:#ec4899;color:#fff;">By series</button>
+          <button id="libByMonth" onclick="setLibraryGroup('month')" style="padding:9px 16px;border:none;font-size:12px;cursor:pointer;background:transparent;color:#9ca3af;">By month</button>
+        </div>
+      </div>
+      <div id="libraryBody"></div>
+    </div>
+  </div>
+
   <div id="liveModeContent" style="display: none; padding: 30px;">
     <div style="max-width: 800px; margin: 0 auto;">
 
@@ -3755,7 +3778,7 @@ function pushRemoteLive() {
       following = 'waiting for a scripture...';
     }
   }
-  ipcRenderer.send('remote-live', { listening: !!isListening, following, recent: recentDetections.slice(0, 5).map(r => r.reference) });
+  ipcRenderer.send('remote-live', { listening: !!isListening, phone: !!phoneAudio, following, recent: recentDetections.slice(0, 5).map(r => r.reference) });
 }
 
 ipcRenderer.on('remote-command', async (_e, req) => {
@@ -3771,6 +3794,28 @@ async function runRemoteCommand({ cmd, ref }) {
     else if (!want && isListening) stopListening();
     pushRemoteLive();
     return { success: want === isListening, error: want && !isListening ? 'Could not start listening. Check the microphone on the computer.' : undefined };
+  }
+  // Live Mode fed by the phone's microphone: the phone streams its audio to OpenAI itself and sends
+  // the words here, where they go through exactly the same matching as words from this computer's mic.
+  if (cmd === 'phone-listen-start') {
+    if (!isPaidPlan()) return { success: false, error: 'Live Mode requires a Pro or Studio plan.' };
+    if (isListening) stopListening();
+    liveMatcherReady();
+    liveText = ''; liveOffset = 0; liveWordBuf = ''; liveFlushLen = 0; liveGptLen = 0;
+    liveHandled.clear(); lastTranscriptAt = Date.now();
+    liveStreaming = true; phoneAudio = true; isListening = true;
+    fullTranscript = ''; readAlongStarted = false;
+    updateMicUI(true);
+    pushRemoteLive();
+    return { success: true };
+  }
+  if (cmd === 'phone-listen-stop') {
+    if (phoneAudio) stopListening();
+    return { success: true };
+  }
+  if (cmd === 'live-text') {
+    if (phoneAudio && ref) onLiveDelta(ref);
+    return { success: true };
   }
   if (cmd === 'video-toggle') { ipcRenderer.send('video-control', { action: 'toggle' }); return { success: true }; }
   if (cmd === 'video-restart') { ipcRenderer.send('video-control', { action: 'restart' }); return { success: true }; }
@@ -7292,10 +7337,14 @@ let currentSermonNotes = null;
 function switchSermonMode(mode) {
   document.getElementById('prepModeContent').style.display = mode === 'prep' ? 'block' : 'none';
   document.getElementById('liveModeContent').style.display = mode === 'live' ? 'block' : 'none';
+  document.getElementById('libraryModeContent').style.display = mode === 'library' ? 'block' : 'none';
   document.getElementById('prepModeTab').style.background = mode === 'prep' ? '#ec4899' : 'transparent';
   document.getElementById('prepModeTab').style.color = mode === 'prep' ? '#fff' : '#9ca3af';
   document.getElementById('liveModeTab').style.background = mode === 'live' ? '#ec4899' : 'transparent';
   document.getElementById('liveModeTab').style.color = mode === 'live' ? '#fff' : '#9ca3af';
+  document.getElementById('libraryModeTab').style.background = mode === 'library' ? '#ec4899' : 'transparent';
+  document.getElementById('libraryModeTab').style.color = mode === 'library' ? '#fff' : '#9ca3af';
+  if (mode === 'library') loadLibrary();
   if (mode === 'live') {
     enterLiveMode();
     setTimeout(() => document.getElementById('micBtn')?.focus(), 100);
@@ -7685,6 +7734,226 @@ async function addAllToSchedule() {
     }
   }
   alert(`${count} verse${count !== 1 ? 's' : ''} added to schedule ✅`);
+}
+
+// ─── Sermon Library (Studio) ─────────────────────────────────────────────────
+let _librarySermons = [];
+let _libraryGroup = 'series';
+let _libraryQuery = '';
+let _libraryOpenId = null;
+let _libraryLoaded = false;
+
+async function loadLibrary() {
+  const body = document.getElementById('libraryBody');
+  if (!isStudioPlan()) {
+    body.innerHTML = `<div style="text-align:center;padding:50px 20px;color:#9ca3af;">
+      <div style="font-size:40px;margin-bottom:10px;">📚</div>
+      <div style="color:#fff;font-size:18px;font-weight:700;margin-bottom:6px;">Sermon Library</div>
+      <div style="font-size:13px;max-width:420px;margin:0 auto 16px;line-height:1.6;">Keep every message organised by series and month, with its notes and recap, so your church can return to them anytime. Part of the Studio plan.</div>
+      <button onclick="showUpgradeModal('The sermon library is part of the Studio plan.')" style="padding:10px 20px;background:linear-gradient(135deg,#f59e0b,#ec4899);border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;">See Studio plan</button>
+    </div>`;
+    return;
+  }
+  if (!_libraryLoaded) body.innerHTML = '<div style="color:#9ca3af;padding:30px;text-align:center;">Loading your sermons...</div>';
+  const res = await ipcRenderer.invoke('sermons-call', { action: 'list' });
+  if (!res.success) {
+    body.innerHTML = '<div id="libErr" style="color:#f59e0b;padding:30px;text-align:center;font-size:13px;"></div>';
+    document.getElementById('libErr').textContent = res.error || 'Could not load the library.';
+    return;
+  }
+  _librarySermons = res.sermons || [];
+  _libraryLoaded = true;
+  renderLibrary();
+}
+
+function setLibraryGroup(g) {
+  _libraryGroup = g;
+  document.getElementById('libBySeries').style.background = g === 'series' ? '#ec4899' : 'transparent';
+  document.getElementById('libBySeries').style.color = g === 'series' ? '#fff' : '#9ca3af';
+  document.getElementById('libByMonth').style.background = g === 'month' ? '#ec4899' : 'transparent';
+  document.getElementById('libByMonth').style.color = g === 'month' ? '#fff' : '#9ca3af';
+  renderLibrary();
+}
+
+function _libMonthLabel(d) {
+  if (!d) return 'No date';
+  const [y, m] = d.split('-');
+  return new Date(+y, +m - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+}
+
+function _libMatches(s, q) {
+  if (!q) return true;
+  const hay = [s.title, s.series, s.scriptures, JSON.stringify(s.notes || ''), JSON.stringify(s.recap || '')].join(' ').toLowerCase();
+  return hay.includes(q.toLowerCase());
+}
+
+function renderLibrary() {
+  const body = document.getElementById('libraryBody');
+  if (!body || !_libraryLoaded) return;
+  if (_libraryOpenId) { renderSermonDetail(); return; }
+  const list = _librarySermons.filter(s => _libMatches(s, _libraryQuery.trim()));
+  if (!_librarySermons.length) {
+    body.innerHTML = `<div style="text-align:center;padding:50px 20px;color:#9ca3af;font-size:13px;line-height:1.7;">
+      <div style="font-size:40px;margin-bottom:10px;">📚</div>No sermons saved yet.<br>Generate sermon notes or a service recap, then press <b style="color:#ec4899;">Save to Library</b>.</div>`;
+    return;
+  }
+  if (!list.length) { body.innerHTML = '<div style="color:#9ca3af;padding:30px;text-align:center;font-size:13px;">No sermons match your search.</div>'; return; }
+  const groups = new Map();
+  for (const s of list) {
+    const key = _libraryGroup === 'series' ? (s.series || 'No series') : _libMonthLabel(s.preached_on);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(s);
+  }
+  body.innerHTML = [...groups.entries()].map(([name, items]) => `
+    <div style="margin-bottom:26px;">
+      <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:10px;">
+        <div style="color:#fff;font-size:16px;font-weight:700;">📁 ${escHtml(name)}</div>
+        <div style="color:#6b7280;font-size:12px;">${items.length} ${items.length === 1 ? 'message' : 'messages'}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px;">
+        ${items.map(s => `
+          <div onclick="openSermon('${escHtml(s.id)}')" style="cursor:pointer;padding:14px 16px;background:rgba(26,26,46,0.9);border:1px solid rgba(167,139,250,0.2);border-radius:12px;">
+            <div style="color:#fff;font-size:14px;font-weight:700;margin-bottom:4px;">${escHtml(s.title)}</div>
+            <div style="color:#a78bfa;font-size:12px;">${escHtml(s.scriptures || '')}</div>
+            <div style="color:#6b7280;font-size:11px;margin-top:6px;">${escHtml(s.preached_on || '')}${s.series && _libraryGroup === 'month' ? ' · ' + escHtml(s.series) : ''}</div>
+            <div style="margin-top:8px;display:flex;gap:6px;">
+              ${s.notes ? '<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(236,72,153,0.15);color:#ec4899;">Notes</span>' : ''}
+              ${s.recap ? '<span style="font-size:10px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,0.15);color:#f59e0b;">Recap</span>' : ''}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+function openSermon(id) { _libraryOpenId = id; renderLibrary(); }
+function closeSermon() { _libraryOpenId = null; renderLibrary(); }
+
+function renderSermonDetail() {
+  const s = _librarySermons.find(x => x.id === _libraryOpenId);
+  const body = document.getElementById('libraryBody');
+  if (!s) { _libraryOpenId = null; renderLibrary(); return; }
+  const n = s.notes, r = s.recap;
+  const points = n && Array.isArray(n.points) ? n.points.map(p => `
+    <div style="margin:10px 0;padding:12px 14px;background:rgba(45,45,74,0.5);border-radius:8px;">
+      <div style="color:#fff;font-weight:600;font-size:14px;">${escHtml(p.number ? p.number + '. ' : '')}${escHtml(p.heading || '')}</div>
+      <div style="color:#d1d5db;font-size:13px;line-height:1.6;margin-top:4px;">${escHtml(p.content || '')}</div>
+      ${p.supportingVerse ? `<div style="color:#a78bfa;font-size:12px;margin-top:6px;">${escHtml(p.supportingVerse)}</div>` : ''}
+    </div>`).join('') : '';
+  const recapPoints = r && Array.isArray(r.keyPoints) ? r.keyPoints.map(p => `<li style="margin:4px 0;">${escHtml(p)}</li>`).join('') : '';
+  body.innerHTML = `
+    <button onclick="closeSermon()" style="background:none;border:none;color:#a78bfa;cursor:pointer;font-size:13px;font-weight:600;padding:0;margin-bottom:14px;">← Back to Library</button>
+    <div style="background:rgba(26,26,46,0.9);border:2px solid rgba(236,72,153,0.2);border-radius:12px;padding:22px;">
+      <div style="color:#fff;font-size:22px;font-weight:700;">${escHtml(s.title)}</div>
+      <div style="color:#a78bfa;font-size:13px;margin-top:4px;">${escHtml(s.scriptures || '')}</div>
+      <div style="color:#6b7280;font-size:12px;margin-top:4px;">${escHtml(s.preached_on || 'No date')}${s.series ? ' · ' + escHtml(s.series) : ''}</div>
+      ${n ? `<div style="margin-top:18px;color:#ec4899;font-size:11px;font-weight:700;letter-spacing:2px;">SERMON NOTES</div>
+        ${n.theme ? `<div style="color:#9ca3af;font-size:13px;margin-top:6px;">${escHtml(n.theme)}</div>` : ''}${points}
+        ${n.closingPrayer ? `<div style="color:#d1d5db;font-size:13px;font-style:italic;margin-top:10px;">${escHtml(n.closingPrayer)}</div>` : ''}` : ''}
+      ${r ? `<div style="margin-top:18px;color:#f59e0b;font-size:11px;font-weight:700;letter-spacing:2px;">SERVICE RECAP</div>
+        <div style="color:#d1d5db;font-size:13px;line-height:1.6;margin-top:6px;">${escHtml(r.summary || '')}</div>
+        <ul style="margin:8px 0 0 18px;padding:0;font-size:13px;color:#e5e7eb;">${recapPoints}</ul>
+        ${r.shareText ? `<div style="margin-top:10px;padding:12px;background:rgba(45,45,74,0.6);border-radius:8px;font-size:13px;color:#e5e7eb;white-space:pre-wrap;">${escHtml(r.shareText)}</div>` : ''}` : ''}
+      <div style="margin-top:20px;display:flex;gap:10px;">
+        <button onclick="editSermonDetails('${escHtml(s.id)}')" style="padding:8px 14px;background:rgba(167,139,250,0.18);border:1px solid rgba(167,139,250,0.5);border-radius:8px;color:#c4b5fd;font-weight:700;font-size:12px;cursor:pointer;">Edit title / series / date</button>
+        <button onclick="deleteSermon('${escHtml(s.id)}')" style="padding:8px 14px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.4);border-radius:8px;color:#ef4444;font-weight:700;font-size:12px;cursor:pointer;">Delete</button>
+      </div>
+    </div>`;
+}
+
+async function deleteSermon(id) {
+  const s = _librarySermons.find(x => x.id === id);
+  if (!s || !confirm(`Delete "${s.title}" from the library?`)) return;
+  const res = await ipcRenderer.invoke('sermons-call', { action: 'delete', id });
+  if (!res.success) { alert(res.error || 'Could not delete.'); return; }
+  _libraryOpenId = null;
+  await loadLibrary();
+}
+
+// Save dialog. 'notes' saves the current sermon notes; 'recap' saves the current service recap.
+// Pick an existing sermon to add to it (so one entry can hold both notes and recap), or make a new one.
+function openSaveSermonModal(kind, editId) {
+  if (!isStudioPlan()) { showUpgradeModal('The sermon library is part of the Studio plan.'); return; }
+  const editing = editId ? _librarySermons.find(x => x.id === editId) : null;
+  if (!editing) {
+    if (kind === 'notes' && !currentSermonNotes) { alert('Generate sermon notes first.'); return; }
+    if (kind === 'recap' && !_lastRecap) { alert('Generate a recap first.'); return; }
+  }
+  const today = new Date();
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+  const title = editing ? editing.title : (kind === 'notes' ? (currentSermonNotes.title || '') : (_lastRecap.title || ''));
+  const scripture = editing ? (editing.scriptures || '') : (kind === 'notes' ? (currentSermonNotes.scripture || '') : ((_lastRecap.mainScriptures || []).join(', ')));
+  const series = editing ? (editing.series || '') : '';
+  const date = editing ? (editing.preached_on || '') : todayStr;
+  const existingOpts = editing ? '' : `
+    <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;margin:12px 0 4px;">SAVE AS</label>
+    <select id="svTarget" onchange="onSermonTargetChange()" style="width:100%;padding:9px;background:#1a1a2e;border:1px solid rgba(167,139,250,0.3);border-radius:8px;color:#fff;">
+      <option value="">New sermon</option>
+      ${_librarySermons.map(s => `<option value="${escHtml(s.id)}">Add to: ${escHtml(s.title)} (${escHtml(s.preached_on || 'no date')})</option>`).join('')}
+    </select>`;
+  const field = (id, label, val, type = 'text') => `
+    <label style="display:block;color:#9ca3af;font-size:11px;font-weight:700;margin:12px 0 4px;">${label}</label>
+    <input id="${id}" type="${type}" value="${escHtml(val)}" style="width:100%;box-sizing:border-box;padding:9px;background:#1a1a2e;border:1px solid rgba(167,139,250,0.3);border-radius:8px;color:#fff;font-size:13px;outline:none;">`;
+  const wrap = document.createElement('div');
+  wrap.id = 'saveSermonModal';
+  wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  wrap.innerHTML = `<div style="width:420px;max-width:92vw;background:#0f0f1e;border:2px solid rgba(236,72,153,0.4);border-radius:14px;padding:22px;">
+      <div style="color:#fff;font-size:17px;font-weight:700;">${editing ? 'Edit sermon details' : '📚 Save to Library'}</div>
+      ${existingOpts}
+      ${field('svTitle', 'TITLE', title)}
+      ${field('svSeries', 'SERIES (optional, e.g. "Faith Over Fear")', series)}
+      ${field('svScripture', 'SCRIPTURE', scripture)}
+      ${field('svDate', 'DATE PREACHED', date, 'date')}
+      <div id="svErr" style="color:#f59e0b;font-size:12px;margin-top:10px;min-height:14px;"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px;">
+        <button onclick="document.getElementById('saveSermonModal').remove()" style="padding:9px 16px;background:rgba(45,45,74,0.6);border:1px solid rgba(167,139,250,0.3);border-radius:8px;color:#e5e7eb;cursor:pointer;">Cancel</button>
+        <button id="svSave" onclick="confirmSaveSermon('${kind}', '${editing ? escHtml(editing.id) : ''}')" style="padding:9px 18px;background:linear-gradient(135deg,#ec4899,#a78bfa);border:none;border-radius:8px;color:#fff;font-weight:700;cursor:pointer;">Save</button>
+      </div>
+    </div>`;
+  document.body.appendChild(wrap);
+}
+
+function editSermonDetails(id) { openSaveSermonModal(null, id); }
+
+function onSermonTargetChange() {
+  const id = document.getElementById('svTarget').value;
+  const s = _librarySermons.find(x => x.id === id);
+  if (!s) return;
+  document.getElementById('svTitle').value = s.title || '';
+  document.getElementById('svSeries').value = s.series || '';
+  document.getElementById('svScripture').value = s.scriptures || '';
+  document.getElementById('svDate').value = s.preached_on || '';
+}
+
+async function confirmSaveSermon(kind, editId) {
+  const err = document.getElementById('svErr');
+  const title = document.getElementById('svTitle').value.trim();
+  if (!title) { err.textContent = 'Give the sermon a title.'; return; }
+  const targetEl = document.getElementById('svTarget');
+  const id = editId || (targetEl ? targetEl.value : '');
+  const sermon = {
+    id: id || undefined,
+    title,
+    series: document.getElementById('svSeries').value.trim(),
+    scriptures: document.getElementById('svScripture').value.trim(),
+    preached_on: document.getElementById('svDate').value
+  };
+  if (!editId) {
+    if (kind === 'notes') sermon.notes = currentSermonNotes;
+    if (kind === 'recap') sermon.recap = _lastRecap;
+  }
+  const btn = document.getElementById('svSave');
+  btn.disabled = true; btn.textContent = 'Saving...';
+  const res = await ipcRenderer.invoke('sermons-call', { action: 'save', sermon });
+  if (!res.success) {
+    btn.disabled = false; btn.textContent = 'Save';
+    if (res.upgradeRequired) { document.getElementById('saveSermonModal').remove(); showUpgradeModal(res.error); return; }
+    err.textContent = res.error || 'Could not save.';
+    return;
+  }
+  document.getElementById('saveSermonModal').remove();
+  _libraryLoaded = false;
+  if (document.getElementById('libraryModeContent').style.display === 'block') await loadLibrary();
+  else alert('Saved to your Sermon Library ✅');
 }
 
 function saveSermonNotes() {
@@ -8101,6 +8370,7 @@ function liveIsBehind(reference) {
 
 let liveMatcher = null;
 let liveStreaming = false;
+let phoneAudio = false;   // true while the phone's microphone (not this computer's) is feeding Live Mode
 let liveCtx = null, liveNode = null, liveSource = null, liveStreamObj = null;
 let liveText = '', liveOffset = 0, liveSettleTimer = null, liveWordBuf = '', liveFlushLen = 0;
 let lastTranscriptAt = 0, liveGain = 1, liveEma = 0, liveGptLen = 0, liveCandTimer = null;
@@ -8566,6 +8836,7 @@ async function startListeningChunked() {
 
 function stopListening() {
   isListening = false;
+  phoneAudio = false;
   stopLiveStreaming();
   if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
   mediaRecorder = null;
@@ -8886,9 +9157,11 @@ async function generateServiceRecap() {
 }
 
 let _recapShareText = '';
+let _lastRecap = null;
 function renderServiceRecap(r) {
   const esc = t => String(t == null ? '' : t).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
   _recapShareText = r.shareText || '';
+  _lastRecap = r;
   const points = (r.keyPoints || []).map(p => `<li style="margin:4px 0;">${esc(p)}</li>`).join('');
   const verses = (serviceLog.length ? serviceLog : (r.mainScriptures || [])).map(esc).join(' &middot; ');
   document.getElementById('recapOutput').innerHTML = `
@@ -8898,7 +9171,8 @@ function renderServiceRecap(r) {
     ${verses ? `<div style="font-size:12px;color:#a78bfa;margin-top:10px;">Scriptures: ${verses}</div>` : ''}
     <div style="font-size:13px;color:#fcd34d;margin-top:10px;font-style:italic;">${esc(r.takeHome)}</div>
     <div style="margin-top:14px;padding:12px;background:rgba(45,45,74,0.6);border-radius:8px;font-size:13px;color:#e5e7eb;white-space:pre-wrap;">${esc(r.shareText)}</div>
-    <button onclick="copyRecapShare(this)" style="margin-top:10px;padding:8px 14px;background:rgba(167,139,250,0.18);border:1px solid rgba(167,139,250,0.5);border-radius:8px;color:#c4b5fd;font-weight:700;font-size:12px;cursor:pointer;">Copy message</button>`;
+    <button onclick="copyRecapShare(this)" style="margin-top:10px;padding:8px 14px;background:rgba(167,139,250,0.18);border:1px solid rgba(167,139,250,0.5);border-radius:8px;color:#c4b5fd;font-weight:700;font-size:12px;cursor:pointer;">Copy message</button>
+    <button onclick="openSaveSermonModal('recap')" style="margin:10px 0 0 8px;padding:8px 14px;background:rgba(236,72,153,0.15);border:1px solid rgba(236,72,153,0.4);border-radius:8px;color:#ec4899;font-weight:700;font-size:12px;cursor:pointer;">📚 Save to Library</button>`;
 }
 
 function copyRecapShare(btn) {

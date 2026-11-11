@@ -50,8 +50,8 @@ const PLANS = [
   },
   {
     name: 'Studio',
-    monthly: 50,
-    annual: 40,
+    monthly: 29,
+    annual: 24,
     featured: false,
     color: '#f59e0b',
     features: [

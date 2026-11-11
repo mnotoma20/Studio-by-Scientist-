@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase'
 
 export type ChurchAuthResult =
-  | { ok: true; userId: string; church: { id: string; plan: string; is_admin: boolean }; entitled: boolean }
+  | { ok: true; userId: string; church: { id: string; plan: string; is_admin: boolean }; entitled: boolean; owner: boolean }
   | { ok: false; status: number; error: string }
 
 const OWNER_EMAILS = ['oghenemine2007@outlook.com']
@@ -35,5 +35,5 @@ export async function authChurch(request: Request): Promise<ChurchAuthResult> {
   const isOwner = church.is_admin === true || OWNER_EMAILS.includes((user.email || '').toLowerCase())
   const entitled = isOwner || plan === 'pro' || plan === 'studio'
 
-  return { ok: true, userId: user.id, church: { id: church.id, plan, is_admin: church.is_admin === true }, entitled }
+  return { ok: true, userId: user.id, church: { id: church.id, plan, is_admin: church.is_admin === true }, entitled, owner: isOwner }
 }

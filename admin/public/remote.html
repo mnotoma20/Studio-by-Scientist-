@@ -64,6 +64,8 @@
   <div class="live">
     <small>Live Mode (AI listening)</small>
     <button class="listen" id="listenBtn" onclick="toggleListen()">🎙 Start listening</button>
+    <button class="listen" id="phoneBtn" onclick="togglePhoneMic()">📱 Listen with this phone</button>
+    <div class="follow" id="phoneNote"></div>
     <div class="follow" id="follow"></div>
     <div class="chips" id="chips"></div>
   </div>
@@ -101,6 +103,137 @@
   }
   let listening = false;
   function toggleListen() { send(listening ? 'listen-stop' : 'listen-start'); }
+
+  // ── Listening with this phone's microphone ──
+  // Same service the computer uses: audio goes from here straight to OpenAI's live transcription
+  // (using a short-lived pass from our server) and the words are relayed to Studio, which runs its
+  // normal verse detection on them.
+  let pm = null;   // { ctx, stream, node, ws, wake, active, buf, timer, chain, startedAt, misses }
+  const pmNote = (t, err) => { $('phoneNote').textContent = t; $('phoneNote').style.color = err ? '#fca5a5' : ''; };
+
+  function pmResample(input, from) {
+    if (from === 24000) return input;
+    const ratio = from / 24000, n = Math.floor(input.length / ratio), out = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = i * ratio, i0 = Math.floor(x), i1 = Math.min(i0 + 1, input.length - 1), f = x - i0;
+      out[i] = input[i0] * (1 - f) + input[i1] * f;
+    }
+    return out;
+  }
+  function pmB64(int16) {
+    const b = new Uint8Array(int16.buffer); let s = '';
+    for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  // One request at a time (keeps the words in order); anything heard meanwhile goes out in the next one.
+  function pmSendText() {
+    if (!pm || !pm.buf || pm.sending) return;
+    const text = pm.buf; pm.buf = ''; pm.sending = true;
+    fetch('/api/remote/text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ s: S, text }) })
+      .catch(() => {}).finally(() => { if (pm) { pm.sending = false; pmSendText(); } });
+  }
+  async function pmConnect() {
+    const r = await fetch('/api/remote/live-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ s: S }) });
+    const t = await r.json().catch(() => ({}));
+    if (!r.ok || !t.value) throw new Error(t.error || 'Could not start listening');
+    await new Promise((resolve, reject) => {
+      const ws = new WebSocket('wss://api.openai.com/v1/realtime?intent=transcription', ['realtime', 'openai-insecure-api-key.' + t.value]);
+      let opened = false;
+      ws.onopen = () => { opened = true; pm.ws = ws; resolve(); };
+      ws.onmessage = (ev) => {
+        let e; try { e = JSON.parse(ev.data); } catch (_) { return; }
+        if (e.type === 'conversation.item.input_audio_transcription.delta' && e.delta) { pm.buf += e.delta; pmSendText(); }
+        else if (e.type === 'error') pmNote((e.error && e.error.message) || 'Transcription error', true);
+      };
+      ws.onerror = () => { if (!opened) reject(new Error('Could not reach the listening service')); };
+      ws.onclose = () => { if (pm && pm.ws === ws) { pm.ws = null; if (pm.active) pmReconnect(); } };
+    });
+  }
+  async function pmReconnect() {
+    if (!pm || pm.reconnecting) return;
+    pm.reconnecting = true; pmNote('Reconnecting…');
+    for (let i = 1; pm && pm.active && !pm.ws && i <= 8; i++) {
+      await new Promise((r) => setTimeout(r, Math.min(500 * i, 4000)));
+      try { await pmConnect(); pmNote('Listening with this phone'); } catch (_) { /* try again */ }
+    }
+    if (pm) { pm.reconnecting = false; if (pm.active && !pm.ws) { pmNote('Lost connection — tap to try again', true); stopPhoneMic(true); } }
+  }
+  async function startPhoneMic() {
+    if (pm) return;
+    $('phoneBtn').disabled = true; pmNote('Starting…');
+    try {
+      pm = { active: true, buf: '', chain: Promise.resolve(), startedAt: Date.now(), misses: 0, ws: null };
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      pm.stream = stream;
+      const r = await post({ cmd: 'phone-listen-start' });
+      if (!r.success) throw new Error(r.error || 'Studio did not start listening');
+      await pmConnect();
+      const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+      if (ctx.state === 'suspended') await ctx.resume();
+      pm.ctx = ctx;
+      const src = ctx.createMediaStreamSource(stream);
+      const mute = ctx.createGain(); mute.gain.value = 0; mute.connect(ctx.destination);
+      let pending = [], pendingLen = 0;
+      const onAudio = (f32) => {
+        if (!pm || !pm.ws || pm.ws.readyState !== 1) return;
+        const a = pmResample(f32, ctx.sampleRate);
+        pending.push(a); pendingLen += a.length;
+        if (pendingLen < 2400) return;   // ~100 ms
+        const block = new Float32Array(pendingLen); let o = 0;
+        for (const p of pending) { block.set(p, o); o += p.length; }
+        pending = []; pendingLen = 0;
+        const pcm = new Int16Array(block.length);
+        for (let i = 0; i < block.length; i++) { const v = Math.max(-1, Math.min(1, block[i])); pcm[i] = v < 0 ? v * 0x8000 : v * 0x7FFF; }
+        pm.ws.send(JSON.stringify({ type: 'input_audio_buffer.append', audio: pmB64(pcm) }));
+      };
+      try {
+        const code = "class P extends AudioWorkletProcessor{process(i){const a=i[0];if(a&&a[0])this.port.postMessage(a[0].slice(0));return true;}}registerProcessor('pcm-capture',P);";
+        const url = URL.createObjectURL(new Blob([code], { type: 'application/javascript' }));
+        await ctx.audioWorklet.addModule(url); URL.revokeObjectURL(url);
+        pm.node = new AudioWorkletNode(ctx, 'pcm-capture');
+        pm.node.port.onmessage = (ev) => onAudio(ev.data);
+      } catch (_) {
+        pm.node = ctx.createScriptProcessor(2048, 1, 1);
+        pm.node.onaudioprocess = (ev) => onAudio(new Float32Array(ev.inputBuffer.getChannelData(0)));
+      }
+      src.connect(pm.node); pm.node.connect(mute);
+      pm.timer = setInterval(pmSendText, 300);
+      try { if (navigator.wakeLock) pm.wake = await navigator.wakeLock.request('screen'); } catch (_) { /* optional */ }
+      $('phoneBtn').className = 'listen on'; $('phoneBtn').textContent = '⏹ Stop listening with phone';
+      pmNote('Listening with this phone — keep this page open and the screen on');
+    } catch (e) {
+      const denied = e && (e.name === 'NotAllowedError' || e.name === 'SecurityError');
+      pmNote(denied ? 'Microphone is blocked. Allow it for this page in your browser settings.' : (e.message || 'Could not start'), true);
+      await stopPhoneMic(false);
+    }
+    $('phoneBtn').disabled = false;
+  }
+  async function stopPhoneMic(tellStudio) {
+    const m = pm; pm = null;
+    if (!m) return;
+    m.active = false;
+    clearInterval(m.timer);
+    try { if (m.node) m.node.disconnect(); } catch (_) {}
+    try { if (m.ctx) m.ctx.close(); } catch (_) {}
+    try { if (m.stream) m.stream.getTracks().forEach((t) => t.stop()); } catch (_) {}
+    try { if (m.ws) m.ws.close(); } catch (_) {}
+    try { if (m.wake) m.wake.release(); } catch (_) {}
+    if (m.buf) { try { await fetch('/api/remote/text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ s: S, text: m.buf }) }); } catch (_) {} }
+    if (tellStudio !== false) { try { await post({ cmd: 'phone-listen-stop' }); } catch (_) {} }
+    $('phoneBtn').className = 'listen'; $('phoneBtn').textContent = '📱 Listen with this phone';
+    if (tellStudio !== false) pmNote('');
+  }
+  function togglePhoneMic() { if (pm && pm.active) { stopPhoneMic(true); } else startPhoneMic(); }
+  // If Studio stopped listening (someone pressed the mic on the computer), stop capturing here too
+  function pmCheck(l) {
+    if (!pm || !pm.active || Date.now() - pm.startedAt < 8000) return;
+    if (l.phone) { pm.misses = 0; return; }
+    if (++pm.misses >= 2) { pmNote('Studio stopped listening'); stopPhoneMic(false); }
+  }
+  window.addEventListener('pagehide', () => { if (pm) stopPhoneMic(true); });
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && pm && pm.active && navigator.wakeLock) { try { pm.wake = await navigator.wakeLock.request('screen'); } catch (_) {} }
+  });
   window.onerror = (m) => { $('boot').style.display = 'block'; $('boot').textContent = 'Page error: ' + m; };
   async function poll() {
     try {
@@ -119,6 +252,7 @@
       }
       const l = s.live || {};
       listening = !!l.listening;
+      pmCheck(l);
       $('listenBtn').className = 'listen' + (listening ? ' on' : '');
       $('listenBtn').textContent = listening ? '⏹ Stop listening' : '🎙 Start listening';
       $('follow').textContent = listening && l.following ? 'Following: ' + l.following : '';

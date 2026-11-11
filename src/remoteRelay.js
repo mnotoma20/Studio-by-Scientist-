@@ -14,7 +14,8 @@ async function tick() {
   const mine = session;
   let resp;
   try {
-    resp = await cfg.post('/api/remote/poll', { session: mine, state: cfg.getState(), results });
+    const hold = !!(cfg.wantHold && cfg.wantHold());
+    resp = await cfg.post('/api/remote/poll', { session: mine, state: cfg.getState(), results, hold });
   } catch (_) { resp = null; }   // brief network drop: keep trying
   if (session !== mine) return;
   if (resp && resp._status === 404) { session = null; return; }   // ended elsewhere
@@ -29,7 +30,7 @@ async function tick() {
       ranCommands = true;
     }
   }
-  if (session === mine) timer = setTimeout(tick, ranCommands ? 50 : 700);   // deliver results straight away
+  if (session === mine) timer = setTimeout(tick, ranCommands ? 50 : (cfg.wantHold && cfg.wantHold() ? 20 : 700));   // deliver results straight away
 }
 
 async function start(options) {

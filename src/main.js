@@ -1549,6 +1549,7 @@ ipcMain.handle('remote-start', async () => {
       baseUrl: adminBaseUrl(),
       onCommand: remoteCommand,
       getState: () => ({ ...(remoteShown || {}), live: remoteLive, video: remoteVideo }),
+      wantHold: () => !!(remoteLive && remoteLive.phone),
     });
     return { success: true, ...info };
   } catch (e) {
@@ -1562,6 +1563,19 @@ ipcMain.handle('remote-stop', async () => {
 });
 
 app.on('before-quit', () => { remoteRelay.stop(); });
+
+// Studio plan: sermon library. The admin server checks the church and plan; the app just relays.
+ipcMain.handle('sermons-call', async (_event, payload) => {
+  try {
+    const r = await adminPost('/api/sermons', payload);
+    if (r._status < 200 || r._status >= 300) {
+      return { success: false, error: r.error || `Request failed (${r._status})`, upgradeRequired: !!r.upgradeRequired };
+    }
+    return { success: true, sermons: r.sermons, sermon: r.sermon };
+  } catch (e) {
+    return { success: false, error: 'Could not reach the server. Check your internet connection.' };
+  }
+});
 
 // Studio plan: turn a finished service (live transcript + scriptures shown) into a recap
 ipcMain.handle('generate-service-recap', async (_event, data) => {
