@@ -25,12 +25,10 @@ function track(slug: string, kind: 'view' | 'click', detail?: string) {
 
 export default function DemoPage({ slug }: { slug: string }) {
   const [church, setChurch] = useState<string | null>(null)
-  const [hasVideo, setHasVideo] = useState(false)
+  const [hasVideo, setHasVideo] = useState(true)
 
   useEffect(() => {
     track(slug, 'view').then((d) => { if (d && d.church_name) setChurch(d.church_name) })
-    // Show the video only once /demo.mp4 has actually been added to the site
-    fetch('/demo.mp4', { method: 'HEAD' }).then((r) => { if (r.ok && (r.headers.get('content-type') || '').startsWith('video')) setHasVideo(true) }).catch(() => {})
   }, [slug])
 
   return (
@@ -48,21 +46,24 @@ export default function DemoPage({ slug }: { slug: string }) {
           Studio is church presentation software that listens to the preacher and puts the Scripture on the screen as it is read.
         </p>
 
-        <div className="mb-14"><ProjectorGallery /></div>
-        <div className="mb-14"><p className="text-xs font-semibold tracking-widest uppercase mb-4 text-center" style={{ color: '#a78bfa' }}>What your team sees</p><ScreenshotGallery heading={false} /></div>
-
         {hasVideo && (
           <video
-            src="/demo.mp4"
+            src="/demo/live.mp4"
+            poster="/demo/live-poster.jpg"
+            autoPlay
+            muted
+            loop
             controls
             playsInline
             preload="metadata"
             onError={() => setHasVideo(false)}
-            onPlay={() => track(slug, 'click', 'video')}
-            className="w-full max-w-3xl rounded-2xl mb-12"
+            className="w-full rounded-2xl mb-14"
             style={{ border: '1px solid rgba(167,139,250,0.25)', background: '#0d0d18' }}
           />
         )}
+
+        <div className="mb-14"><ProjectorGallery /></div>
+        <div className="mb-14"><p className="text-xs font-semibold tracking-widest uppercase mb-4 text-center" style={{ color: '#a78bfa' }}>What your team sees</p><ScreenshotGallery heading={false} /></div>
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-12">
           {FEATURES.map((f) => (

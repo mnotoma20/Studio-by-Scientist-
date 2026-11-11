@@ -2,7 +2,6 @@
 
 import { useRef } from 'react'
 import { motion, useInView } from 'framer-motion'
-import AnimatedTranscript from './AnimatedTranscript'
 
 export default function AIShowcase() {
   const ref = useRef<HTMLElement>(null)
@@ -30,7 +29,12 @@ export default function AIShowcase() {
             initial={{ opacity: 0, x: -40 }}
             animate={inView ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.7 }}>
-            <AnimatedTranscript active={inView} />
+            <div className="rounded-2xl overflow-hidden"
+              style={{ border: '1px solid rgba(236,72,153,0.25)', background: '#0d0d18', boxShadow: '0 20px 60px rgba(236,72,153,0.1)' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/demo/recap.jpg" alt="Studio's live mode: the read-along and live transcript, the verse now on the projector, and the service recap" width={1600} className="w-full h-auto block" loading="lazy" />
+            </div>
+            <p className="text-center text-xs mt-3" style={{ color: '#4b5563' }}>Live mode in the real app. Sample content shown.</p>
           </motion.div>
 
           {/* Right — Copy */}
