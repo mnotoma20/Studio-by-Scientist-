@@ -9,6 +9,7 @@ import {
   Building2,
   BarChart2,
   Megaphone,
+  Link2,
   Settings,
   LogOut,
   ChevronLeft,
@@ -22,6 +23,7 @@ const navItems = [
   { icon: Building2, label: 'Churches', href: '/churches' },
   { icon: BarChart2, label: 'Analytics', href: '/analytics' },
   { icon: Megaphone, label: 'Announcements', href: '/announcements' },
+  { icon: Link2, label: 'Demos', href: '/demos' },
   { icon: Settings, label: 'Settings', href: '/settings' },
 ]
 

@@ -11,6 +11,7 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith('/api/ai/') ||
     request.nextUrl.pathname.startsWith('/api/remote/') ||
     request.nextUrl.pathname.startsWith('/api/sermons') ||
+    request.nextUrl.pathname.startsWith('/api/demo/') ||
     request.nextUrl.pathname === '/remote.html' ||
     request.nextUrl.pathname.startsWith('/billing/')
   ) {

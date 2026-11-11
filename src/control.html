@@ -137,6 +137,10 @@
   grid-template-columns: 220px 1fr 480px;
   background: #0f0f1e;
 }
+    /* Songs tab header: title on its own line, buttons wrap underneath */
+    #songsContent .songs-header { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+    #songsContent .songs-header-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    #songsContent .songs-header-actions .nav-btn { flex: 1 1 auto; padding: 6px 8px; font-size: 12px; white-space: nowrap; }
     .books-panel {
       background: #1a1a2e;
       border-right: 1px solid #2d2d4a;
@@ -489,50 +493,64 @@
       background: #ec4899;
     }
 /* Songs Content Area Styling */
+/* A real three-column grid whose columns shrink with the window, so nothing crowds or runs off the edge */
 #songsContent {
   display: none;
-  flex: 1;
-  gap: 20px;
-  padding: 20px;
+  gap: 16px;
+  padding: 16px;
   position: fixed;
   top: 70px;
   left: 220px;
   right: 0;
   bottom: 0;
+  box-sizing: border-box;
+  grid-template-columns: minmax(190px, 260px) minmax(0, 1fr) minmax(300px, 460px);
+}
+
+#songsContent .books-panel,
+#songsContent .verses-panel,
+#songsContent .preview-panel {
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  border-radius: 12px;
+  padding: 16px;
+  overflow-y: auto;
 }
 
 #songsContent .books-panel {
-  width: 280px;
   background: rgba(26, 26, 46, 0.6);
   border: 2px solid rgba(167, 139, 250, 0.2);
-  border-radius: 12px;
-  padding: 20px;
-  overflow-y: auto;
 }
 
 #songsContent .verses-panel {
-  flex: 1;
   background: rgba(26, 26, 46, 0.6);
   border: 2px solid rgba(167, 139, 250, 0.2);
-  border-radius: 12px;
-  padding: 20px;
-  overflow-y: auto;
 }
 
 #songsContent .preview-panel {
-  width: 560px;
   background: rgba(26, 26, 46, 0.9);
   border: 2px solid rgba(167, 139, 250, 0.5);
-  border-radius: 12px;
-  padding: 20px;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+}
+
+/* Smaller laptops / a minimised window: tighter columns, then the preview drops under the lyrics */
+@media (max-width: 1250px) {
+  #songsContent { gap: 12px; padding: 12px; grid-template-columns: minmax(170px, 210px) minmax(0, 1fr) minmax(260px, 340px); }
+  #songsContent .books-panel, #songsContent .verses-panel, #songsContent .preview-panel { padding: 12px; }
+}
+@media (max-width: 1000px) {
+  #songsContent { grid-template-columns: 180px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 48%); }
+  #songsContent .books-panel { grid-row: 1 / span 2; }
+  #songsContent .preview-panel { grid-column: 2; gap: 8px; }
+  #songsContent #lyricsPreview { min-height: 90px; }
+  #songsContent .preview-label { display: none; }
 }
 
 #lyricsPreview {
   flex: 1;
-  min-height: 480px;
+  min-height: 220px;
   max-height: 750px;
   overflow-y: auto;
   overflow-x: hidden;
@@ -1189,14 +1207,13 @@
 <!-- SONGS CONTENT AREA (Hidden by default) -->
 <div class="content-area" id="songsContent" style="display: none;">
   <div class="books-panel">
-    <div class="panel-header">
-      🎵 Songs
-      <div style="display:flex; gap:6px; align-items:center;">
+    <div class="panel-header songs-header">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:8px;"><span>🎵 Songs</span><span class="tab-help-btn" onclick="startTabTour('songs')" title="How this tab works">?</span></div>
+      <div class="songs-header-actions">
         <button class="nav-btn" onclick="openSongLibrary()" style="background:rgba(167,139,250,0.2); border-color:rgba(167,139,250,0.5); color:#a78bfa;">📚 Library</button>
         <button class="nav-btn" onclick="openSongImport()" style="background:rgba(6,182,212,0.2); border-color:rgba(6,182,212,0.5); color:#06b6d4;">🌐 Import</button>
         <button class="nav-btn" onclick="createNewSong()">+ New</button>
-        <span class="tab-help-btn" onclick="startTabTour('songs')" title="How this tab works">?</span>
-      </div>
+        </div>
     </div>
     <input type="text" class="search-input" placeholder="🔍 Search songs..." style="margin: 10px; width: calc(100% - 20px);">
     <div style="display:flex; align-items:center; gap:10px; margin: 0 10px 10px;">
@@ -3353,7 +3370,7 @@ document.querySelectorAll('.menu-item').forEach((item, index) => {
       document.querySelector('.content-area').style.display = 'grid';
     } else if (index === 1) {
       // Songs
-      document.getElementById('songsContent').style.display = 'flex';
+      document.getElementById('songsContent').style.display = 'grid';
       loadSongs();
     } else if (index === 2) {
       // Announcements
@@ -3953,12 +3970,12 @@ function renderSongViewer() {
   if (!currentSong) return;
   
   editor.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 2px solid rgba(167,139,250,0.2);">
-      <div>
-        <h2 style="color: #fff; font-size: 24px; margin-bottom: 5px;">${currentSong.title}</h2>
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 16px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid rgba(167,139,250,0.2);">
+      <div style="flex: 1 1 200px; min-width: 0;">
+        <h2 style="color: #fff; font-size: clamp(18px, 2.2vw, 24px); line-height: 1.25; margin-bottom: 5px; overflow-wrap: anywhere;">${currentSong.title}</h2>
         <div style="color: #9ca3af; font-size: 14px;">${currentSong.author || 'Unknown Author'}</div>
       </div>
-      <div style="display: flex; gap: 10px;">
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; flex-shrink: 0;">
         <button onclick="toggleEditMode()" style="padding: 10px 20px; background: rgba(167,139,250,0.3); border: 2px solid rgba(167,139,250,0.5); border-radius: 8px; color: #a78bfa; font-weight: 600; cursor: pointer; font-size: 14px;">✏️ Edit</button>
         <button onclick="deleteSong()" style="padding: 10px 20px; background: rgba(239,68,68,0.3); border: 2px solid rgba(239,68,68,0.5); border-radius: 8px; color: #ef4444; font-weight: 600; cursor: pointer; font-size: 14px;">🗑️ Delete</button>
       </div>
@@ -3999,7 +4016,7 @@ function renderSectionCards() {
     
     return `
       <div onclick="selectSection(${index})" style="
-        padding: 20px;
+        padding: 16px 18px;
         background: ${isSelected ? 'linear-gradient(135deg, rgba(167,139,250,0.2), rgba(236,72,153,0.2))' : 'rgba(45,45,74,0.4)'};
         border: 2px solid ${isSelected ? 'rgba(167,139,250,0.6)' : 'rgba(167,139,250,0.1)'};
         border-radius: 12px;
@@ -4013,9 +4030,7 @@ function renderSectionCards() {
           <span style="color: #a78bfa; font-weight: 600; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">${typeLabel}</span>
         </div>
         
-        <div style="color: #e5e7eb; font-size: 14px; line-height: 1.6; font-family: monospace; white-space: pre-wrap; opacity: 0.9;">
-          ${lyricsPreview.substring(0, 100)}${lyricsPreview.length > 100 ? '...' : ''}
-        </div>
+        <div style="color: #e5e7eb; font-size: 14px; line-height: 1.6; font-family: monospace; white-space: pre-wrap; overflow-wrap: anywhere; opacity: 0.9;">${lyricsPreview.substring(0, 100)}${lyricsPreview.length > 100 ? '...' : ''}</div>
       </div>
     `;
   }).join('');
@@ -4118,7 +4133,7 @@ function renderSongEditor() {
   if (!currentSong) return;
   
   editor.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 20px;">
       <h3 style="color: #a78bfa; font-size: 20px;">${currentSong.id ? 'Edit Song' : 'New Song'}</h3>
       ${currentSong.id ? '<button onclick="toggleEditMode()" style="padding: 8px 16px; background: rgba(45,45,74,0.8); border: 1px solid rgba(167,139,250,0.3); border-radius: 6px; color: #a78bfa; cursor: pointer; font-size: 13px; font-weight: 600;">← Back to View</button>' : ''}
     </div>
@@ -4138,9 +4153,9 @@ function renderSongEditor() {
     <div style="margin-bottom: 20px;">
       <label style="display: block; margin-bottom: 10px; color: #9ca3af; font-size: 13px; font-weight: 600;">Sections</label>
       <div id="sectionsContainer">${renderSections()}</div>
-      <div style="display: flex; gap: 8px; margin-top: 10px;">
-        <button onclick="addSection()" style="flex: 1; padding: 12px; background: rgba(45,45,74,0.6); border: 2px dashed rgba(167,139,250,0.3); border-radius: 6px; color: #a78bfa; cursor: pointer; font-size: 14px; font-weight: 600;">+ Add Section</button>
-        <button onclick="togglePasteLyrics()" style="flex: 1; padding: 12px; background: rgba(6,182,212,0.15); border: 2px dashed rgba(6,182,212,0.4); border-radius: 6px; color: #06b6d4; cursor: pointer; font-size: 14px; font-weight: 600;">📋 Paste Lyrics</button>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
+        <button onclick="addSection()" style="flex: 1 1 140px; padding: 12px; background: rgba(45,45,74,0.6); border: 2px dashed rgba(167,139,250,0.3); border-radius: 6px; color: #a78bfa; cursor: pointer; font-size: 14px; font-weight: 600;">+ Add Section</button>
+        <button onclick="togglePasteLyrics()" style="flex: 1 1 140px; padding: 12px; background: rgba(6,182,212,0.15); border: 2px dashed rgba(6,182,212,0.4); border-radius: 6px; color: #06b6d4; cursor: pointer; font-size: 14px; font-weight: 600;">📋 Paste Lyrics</button>
       </div>
       <div id="pasteLyricsBox" style="display: none; margin-top: 12px; padding: 14px; background: rgba(6,182,212,0.06); border: 1px solid rgba(6,182,212,0.25); border-radius: 8px;">
         <div style="color: #9ca3af; font-size: 12px; margin-bottom: 8px; line-height: 1.5;">
@@ -4172,7 +4187,7 @@ function renderSections() {
   
   return currentSong.sections.map((s, i) => `
     <div style="margin-bottom: 15px; padding: 15px; background: rgba(45,45,74,0.4); border-radius: 8px; border: 1px solid rgba(167,139,250,0.1);">
-      <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-bottom: 10px;">
         <select onchange="currentSong.sections[${i}].type = this.value" style="padding: 8px 12px; background: rgba(26,26,46,0.8); border: 1px solid rgba(167,139,250,0.2); border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600;">
           <option value="verse" ${s.type === 'verse' ? 'selected' : ''}>Verse</option>
           <option value="chorus" ${s.type === 'chorus' ? 'selected' : ''}>Chorus</option>
