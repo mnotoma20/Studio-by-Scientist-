@@ -2,6 +2,8 @@ import dynamic from 'next/dynamic'
 import Nav from '@/components/Nav'
 import Hero from '@/components/Hero'
 import ProductShowcase from '@/components/ProductShowcase'
+import ScreenshotGallery from '@/components/ScreenshotGallery'
+import ProjectorGallery from '@/components/ProjectorGallery'
 import HowItWorks from '@/components/HowItWorks'
 import Features from '@/components/Features'
 import AIShowcase from '@/components/AIShowcase'
@@ -19,6 +21,10 @@ export default function Home() {
       <Nav />
       <Hero />
       <ProductShowcase />
+      <div className="relative max-w-6xl mx-auto px-6 py-20">
+        <ScreenshotGallery />
+        <div className="mt-24"><ProjectorGallery /></div>
+      </div>
       <HowItWorks />
       <Features />
       <AIShowcase />
