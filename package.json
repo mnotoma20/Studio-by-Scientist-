@@ -54,9 +54,8 @@
       "!package-lock.json"
     ],
     "publish": {
-      "provider": "github",
-      "owner": "mnotoma20",
-      "repo": "Studio-by-Scientist-"
+      "provider": "generic",
+      "url": "https://github.com/mnotoma20/Studio-by-Scientist-/releases/download/latest"
     },
     "mac": {
       "icon": "assets/logo.icns",
@@ -85,6 +84,7 @@
     },
     "win": {
       "icon": "assets/logo.ico",
+      "artifactName": "StudioByScientist-Windows-Setup.${ext}",
       "target": [
         {
           "target": "nsis",
