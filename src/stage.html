@@ -24,14 +24,14 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 6px 44px;
+      padding: 0.6vh 3vw;
       background: rgba(255,255,255,0.035);
       border-bottom: 1px solid rgba(255,255,255,0.07);
       flex-shrink: 0;
     }
 
     #clock {
-      font-size: 96px;
+      font-size: min(5vw, 11vh);
       line-height: 1;
       white-space: nowrap;
       font-weight: 700;
@@ -55,7 +55,7 @@
     }
 
     #elapsedTimer {
-      font-size: 124px;
+      font-size: min(6.5vw, 14vh);
       white-space: nowrap;
       line-height: 1;
       font-weight: 800;
@@ -114,7 +114,7 @@
 
     /* ── Scripture / Bible verse ──────────── */
     #verseRef {
-      font-size: 62px;
+      font-size: clamp(30px, 3.2vw, 62px);
       font-weight: 900;
       color: #FFD700;
       letter-spacing: 2px;
@@ -374,8 +374,15 @@
     if (!parent) return;
     let size = maxPx;
     el.style.fontSize = size + 'px';
-    while (size > minPx && (el.scrollHeight > parent.clientHeight * 0.85 || parent.scrollHeight > parent.clientHeight + 1)) {
-      size -= 4;
+    const cs = getComputedStyle(parent);
+    const avail = parent.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
+    // Total height of everything in the mode (title, text, translation), so nothing spills off the top
+    const total = () => [...parent.children].reduce((a, c) => {
+      const k = getComputedStyle(c);
+      return a + c.offsetHeight + parseFloat(k.marginTop || 0) + parseFloat(k.marginBottom || 0);
+    }, 0);
+    while (size > minPx && total() > avail) {
+      size -= 2;
       el.style.fontSize = size + 'px';
     }
   }
@@ -413,7 +420,7 @@
 
     showMode('verseMode');
     // Let DOM settle then check overflow
-    requestAnimationFrame(() => autoFitEl(document.getElementById('verseText'), basePx, 40));
+    requestAnimationFrame(() => autoFitEl(document.getElementById('verseText'), basePx, 14));
   });
 
   // ── IPC: Song lyrics ─────────────────────────────────────────────
@@ -437,7 +444,7 @@
     }
 
     showMode('lyricsMode');
-    requestAnimationFrame(() => autoFitEl(mainEl, 96, 40));
+    requestAnimationFrame(() => autoFitEl(mainEl, 96, 14));
   });
 
   // ── IPC: Prayer ───────────────────────────────────────────────────
@@ -452,7 +459,7 @@
     prayerTextEl.style.fontSize = basePx + 'px';
 
     showMode('prayerMode');
-    requestAnimationFrame(() => autoFitEl(prayerTextEl, basePx, 40));
+    requestAnimationFrame(() => autoFitEl(prayerTextEl, basePx, 14));
   });
 
   // ── IPC: Background image (show info label, no media) ────────────
