@@ -169,6 +169,8 @@
   // slots carry only structure (role, type, x/y/w/h, align, placeholder).
   // All visual style comes from the theme's roleStyles at resolve time.
   // ========================================================================
+  const PHOTO_PLACEHOLDER = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 500"><rect width="400" height="500" fill="#2a2540"/><circle cx="200" cy="190" r="80" fill="#4a4468"/><path d="M60 470c0-90 60-150 140-150s140 60 140 150z" fill="#4a4468"/></svg>');
+
   const DECK_LAYOUTS = {
 
     'title-slide': {
@@ -201,6 +203,16 @@
       slots: [
         { role: 'eyebrow', type: 'text', x: 15, y: 37, w: 70, h: 7,  align: 'center', placeholder: 'SECTION' },
         { role: 'title',   type: 'text', x: 8,  y: 45, w: 84, h: 16, align: 'center', placeholder: 'Section Title' },
+      ],
+    },
+
+    'now-ministering': {
+      id: 'now-ministering', name: 'Now Ministering',
+      slots: [
+        { role: 'photo',    type: 'image', x: 8,  y: 12, w: 32, h: 76, radius: 24 },
+        { role: 'eyebrow',  type: 'text', x: 46, y: 28, w: 48, h: 8,  align: 'left', alignOverride: 'left', fontSize: 34, placeholder: 'NOW MINISTERING' },
+        { role: 'title',    type: 'text', x: 46, y: 37, w: 48, h: 26, align: 'left', alignOverride: 'left', placeholder: 'Name Here' },
+        { role: 'subtitle', type: 'text', x: 46, y: 65, w: 48, h: 10, align: 'left', alignOverride: 'left', fontSize: 48, placeholder: 'Song / Dance / Poem' },
       ],
     },
 
@@ -304,6 +316,17 @@
     },
 
     {
+      id: 'talent-show', name: 'Talent Show', category: 'Event', themeId: 'worship',
+      pages: [
+        { layoutId: 'title-slide', transition: 'fade', content: { eyebrow: 'LIVE TONIGHT', title: 'Talent Show', subtitle: 'Sit back and enjoy' } },
+        { layoutId: 'now-ministering', content: { eyebrow: 'NOW MINISTERING', title: 'First Name Last Name', subtitle: 'Song title or item' } },
+        { layoutId: 'now-ministering', content: { eyebrow: 'NOW MINISTERING', title: 'First Name Last Name', subtitle: 'Song title or item' } },
+        { layoutId: 'now-ministering', content: { eyebrow: 'NOW MINISTERING', title: 'First Name Last Name', subtitle: 'Song title or item' } },
+        { layoutId: 'title-slide', content: { eyebrow: '', title: 'Thank You', subtitle: 'God bless you all' } },
+      ],
+    },
+
+    {
       id: 'closing', name: 'Closing', category: 'Service', themeId: 'minimal',
       pages: [
         { layoutId: 'section-header', content: { eyebrow: 'GO IN PEACE', title: 'Benediction' } },
@@ -358,14 +381,23 @@
       });
     }
 
+    if (slot.type === 'image') {
+      return Object.assign(base, {
+        type: 'image',
+        src: (typeof contentValue === 'string' && contentValue) || PHOTO_PLACEHOLDER,
+        objectFit: 'cover',
+        radius: slot.radius || 0,
+      });
+    }
+
     // default: text
     return Object.assign(base, {
       type: 'text',
       html: (typeof contentValue === 'string' ? contentValue : '') || slot.placeholder || '',
       fontFamily: rs.fontFamily || "Arial, sans-serif",
-      fontSize: rs.fontSize || 40,
+      fontSize: slot.fontSize || rs.fontSize || 40,
       color: rs.color || '#ffffff',
-      align: rs.align || slot.align || 'center',
+      align: slot.alignOverride || rs.align || slot.align || 'center',
       bold: !!rs.bold,
       italic: false,
       underline: false,
